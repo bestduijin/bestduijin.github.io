@@ -1,0 +1,85 @@
+/*
+  Colours are named after traditional silk dyes:
+  月白 moon white (the ground), 鸦青 raven blue-black (the ink), 胭脂 rouge (one thread).
+*/
+:root {
+  color-scheme: light dark;
+  --ground: #dcecf0;
+  --ink: #1d2a31;
+  --ink-soft: #4b5f69;
+  --thread: #36525f;
+  --rouge: #9d2933;
+  --gutter: clamp(1.25rem, 6vw, 6.5rem);
+
+  /* Chinese pages: Bodoni Moda supplies letters and digits only, the Song face
+     supplies Chinese and its full-width punctuation. */
+  --font-zh: 'Bodoni Moda', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC',
+    'Source Han Serif CN', 'Noto Serif SC', STSong, SimSun, serif;
+  --font-en: 'Bodoni Moda', 'Bodoni Moda Punct', 'Bodoni 72', Didot, 'Bodoni MT', Georgia,
+    'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Noto Serif SC', STSong, SimSun, serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #131b21;
+    --ink: #d6ecf0;
+    --ink-soft: #8fa6b0;
+    --thread: #9dbac4;
+    --rouge: #e58b94;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-zh);
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  font-size: clamp(1.0625rem, 0.9rem + 0.55vw, 1.3125rem);
+  line-height: 2;
+}
+
+/* Bodoni runs small beside a Song face and needs less leading on its own. */
+:lang(en) {
+  font-family: var(--font-en);
+}
+html:lang(en) body {
+  font-size: clamp(1.1875rem, 1rem + 0.6vw, 1.4375rem);
+  line-height: 1.6;
+}
+:lang(zh-Hans) {
+  font-family: var(--font-zh);
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rouge);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+}
+a:hover {
+  color: var(--rouge);
+}
+:focus-visible {
+  outline: 2px solid var(--rouge);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--rouge);
+  color: var(--ground);
+}

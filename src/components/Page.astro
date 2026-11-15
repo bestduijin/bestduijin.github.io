@@ -1,0 +1,267 @@
+---
+// The whole page, in one language. Wording comes from src/copy.ts.
+import Base from '../layouts/Base.astro';
+import Ribbon from './Ribbon.astro';
+import { copy, site, type Lang } from '../copy';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const c = copy[lang];
+
+// Latin words quoted as words are set in italic and tagged with their language.
+const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const cite = (s: string) => escape(s).replace(/\b(Seres|sericus)\b/g, '<i lang="la">$1</i>');
+// Chinese has no spaces, so a browser may break a line in the middle of a word.
+// In the introduction, lines may only break after punctuation.
+const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，、；。]?/g) ?? [s]) : [s]);
+---
+
+<Base lang={lang}>
+  <header class="hero">
+    <a class="switch" href={c.other.href} hreflang={c.other.hreflang} lang={c.other.hreflang}>{c.other.label}</a>
+    <div class="intro">
+      <div class="mark">
+        <Ribbon />
+        <h1 class="wordmark" lang="it">Serico</h1>
+      </div>
+      <p class="lead">
+        {c.lead.map((sentence) => <span class="sentence">{phrases(sentence).map((phrase) => <span class="phrase">{phrase}</span>)}</span>)}
+      </p>
+      <p class="say">{c.say}</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="row" aria-labelledby="name">
+      <h2 id="name">{c.name.heading}</h2>
+      <div class="col">
+        {c.name.body.map((p) => <p set:html={cite(p)} />)}
+        <ol class="stops">
+          {
+            c.name.stops.map((s) => (
+              <li>
+                <span class="word" lang={s.lang}>{s.word}</span>
+                <span class="from">{s.from}</span>
+                <span class="means">{s.means}</span>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+    </section>
+
+    <section class="row" aria-labelledby="now">
+      <h2 id="now">{c.now.heading}</h2>
+      <div class="col">
+        {c.now.body.map((p) => <p>{p}</p>)}
+      </div>
+    </section>
+
+    <section class="row" aria-labelledby="find">
+      <h2 id="find">{c.find.heading}</h2>
+      <p class="col find">
+        <span class="where">{c.find.github}</span>
+        <a href={site.github.href} rel="me">{site.github.label}</a>
+      </p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>© {site.year} Serico</p>
+    <p>{c.colophon}</p>
+  </footer>
+</Base>
+
+<style>
+  /* ---------- Hero ---------- */
+  .hero {
+    /* One unit for the wordmark and its ribbon: a hundredth of the screen's
+       width, held back on short screens so both still fit above the fold. */
+    --u: min(1vw, 1.45svh);
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: min(100svh, 62vw + 20rem);
+    padding: 1.5rem var(--gutter) clamp(2.5rem, 7svh, 5rem);
+  }
+  .switch {
+    justify-self: end;
+    font-size: 0.95rem;
+  }
+  .intro {
+    align-self: end;
+  }
+  .mark {
+    position: relative;
+  }
+  .wordmark {
+    margin: 0 0 0 -0.045em;
+    font-size: calc(21 * var(--u));
+    font-style: italic;
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+  }
+  /* The ribbon's tail leaves the page just under the wordmark; the text starts below it. */
+  .lead {
+    margin: max(1.5rem, 5.5 * var(--u)) 0 0;
+    font-size: clamp(1rem, 5.1vw, 1.75rem);
+    line-height: 1.8;
+  }
+  /* One sentence per line; a sentence too long for the screen splits evenly. */
+  .sentence {
+    display: block;
+    text-wrap: balance;
+  }
+  .phrase {
+    display: inline-block;
+  }
+  :lang(en) .phrase {
+    display: inline;
+  }
+  :lang(en) .lead {
+    max-width: 34em;
+    line-height: 1.5;
+  }
+  .say {
+    margin: 1.6rem 0 0;
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+  }
+
+  /* ---------- Sections: a name on the left, the text on the right ---------- */
+  main {
+    padding-inline: var(--gutter);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 13rem) minmax(0, 31em);
+    column-gap: clamp(1.5rem, 5vw, 5rem);
+    padding-block: clamp(2.5rem, 5vw, 4rem);
+  }
+  .row > h2 {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 1em;
+    font-weight: 400;
+    line-height: inherit;
+  }
+  .col > p {
+    margin: 0;
+  }
+  .col > p + p {
+    margin-top: 1.1em;
+  }
+
+  /* ---------- The name's journey: four stops on one rouge thread ---------- */
+  .stops {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 1.25rem;
+    margin: 3rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .stops li {
+    position: relative;
+    padding-top: 1.5rem;
+  }
+  /* A knot at each stop, and the thread running on to the next one. */
+  .stops li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--rouge);
+  }
+  .stops li:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: calc(100% + 1.25rem);
+    border-top: 1px solid var(--rouge);
+  }
+  .stops span {
+    display: block;
+  }
+  .word {
+    font-size: 1.7em;
+    font-style: italic;
+    line-height: 1.25;
+  }
+  .word:lang(zh-Hans) {
+    font-style: normal;
+  }
+  .from {
+    margin-top: 0.35rem;
+    color: var(--ink-soft);
+    font-size: 0.8em;
+    line-height: 1.5;
+  }
+  .means {
+    font-size: 0.8em;
+    line-height: 1.6;
+  }
+
+  /* ---------- Where to find me ---------- */
+  .find {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+  }
+  .where {
+    color: var(--ink-soft);
+  }
+
+  .foot {
+    padding: 2rem var(--gutter) 3rem;
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    line-height: 1.7;
+  }
+  .foot p {
+    margin: 0;
+  }
+
+  /* ---------- Narrower screens: the section name moves above its text ---------- */
+  @media (max-width: 60rem) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 1rem;
+    }
+    .col {
+      max-width: 34em;
+    }
+  }
+  /* ---------- Phones: the thread runs downward ---------- */
+  @media (max-width: 46rem) {
+    .stops {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 1.5rem;
+      margin-top: 2.25rem;
+    }
+    .stops li {
+      padding: 0 0 0 1.75rem;
+    }
+    .stops li::before {
+      top: 0.9rem;
+    }
+    .stops li:not(:last-child)::after {
+      top: calc(0.9rem + 3px);
+      width: 0;
+      height: calc(100% + 1.5rem);
+      border-top: 0;
+      border-left: 1px solid var(--rouge);
+    }
+  }
+</style>

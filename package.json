@@ -1,0 +1,19 @@
+{
+  "name": "serico-home",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Serico's personal homepage. Static site built with Astro, published on GitHub Pages.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/bodoni-moda": "5.3.0",
+    "astro": "7.4.12"
+  },
+  "engines": {
+    "node": ">=22.23.4"
+  }
+}

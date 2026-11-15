@@ -1,0 +1,149 @@
+---
+// A ribbon of fine silk threads. It enters at the east (right) edge, crosses
+// behind the wordmark and leaves at the west (left) edge. The paths are
+// computed at build time; nothing runs in the browser. One thread is dyed rouge.
+//
+// Drawn in a 1600 x 660 box that is as wide as the screen. The wordmark's
+// baseline sits near y = 577, its capital S starts near y = 334, and the
+// letters span roughly x = 80 to 930.
+const W = 1600;
+const H = 660;
+const THREADS = 44;
+const STEP = 40; // distance between sample points along the ribbon
+
+type Pt = [number, number];
+
+// [t, value] pairs, t = x / W. Values between the knots are a smooth curve
+// through them (cubic Hermite with finite-difference tangents).
+function curve(knots: Pt[]) {
+  const slope = (i: number) => {
+    const a = knots[Math.max(i - 1, 0)];
+    const b = knots[Math.min(i + 1, knots.length - 1)];
+    return (b[1] - a[1]) / (b[0] - a[0]);
+  };
+  return (t: number) => {
+    let i = knots.findIndex((k) => k[0] > t) - 1;
+    if (i < 0) i = t < knots[0][0] ? 0 : knots.length - 2;
+    const [t0, v0] = knots[i];
+    const [t1, v1] = knots[i + 1];
+    const h = t1 - t0;
+    const u = (t - t0) / h;
+    const u2 = u * u;
+    const u3 = u2 * u;
+    return (
+      (2 * u3 - 3 * u2 + 1) * v0 +
+      (u3 - 2 * u2 + u) * h * slope(i) +
+      (-2 * u3 + 3 * u2) * v1 +
+      (u3 - u2) * h * slope(i + 1)
+    );
+  };
+}
+
+// The line down the middle of the ribbon.
+const centre = curve([
+  [-0.1, 470], [0, 500], [0.125, 532], [0.26, 525], [0.42, 478], [0.55, 360],
+  [0.66, 215], [0.79, 150], [0.9, 160], [1, 195], [1.1, 240],
+]);
+// Half the ribbon's visible width. It passes through zero where the ribbon
+// turns edge-on, and the sign flips as the other face comes round.
+const WIDEST = 138;
+const half = curve([
+  [-0.1, 80], [0, 58], [0.125, 0], [0.26, -92], [0.42, -WIDEST], [0.55, -95],
+  [0.66, 0], [0.79, 85], [0.9, 115], [1, 128], [1.1, 135],
+]);
+// A thread sits at s in [-1, 1] across the ribbon. Where the ribbon is
+// edge-on the threads gather; the second term keeps them from meeting in a point.
+const offset = (s: number, t: number) => {
+  const w = half(t);
+  return w * s + 26 * Math.sin(Math.PI * s) * (1 - Math.min(Math.abs(w) / WIDEST, 1));
+};
+
+const n = (v: number) => v.toFixed(1).replace(/\.0$/, '');
+const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+
+// A quadratic B-spline through the midpoints of the samples: smooth, and one
+// short `T` command per sample.
+function thread(s: number): string {
+  const pts: Pt[] = [];
+  for (let x = -2 * STEP; x <= W + 2 * STEP; x += STEP) {
+    const t = x / W;
+    pts.push([x, centre(t) + offset(s, t)]);
+  }
+  let m = mid(pts[0], pts[1]);
+  let d = `M${n(m[0])},${n(m[1])}`;
+  m = mid(pts[1], pts[2]);
+  d += `Q${n(pts[1][0])},${n(pts[1][1])} ${n(m[0])},${n(m[1])}`;
+  for (let i = 2; i < pts.length - 1; i++) {
+    m = mid(pts[i], pts[i + 1]);
+    d += `T${n(m[0])},${n(m[1])}`;
+  }
+  return d;
+}
+
+const threads = Array.from({ length: THREADS }, (_, i) => thread(-1 + (2 * i) / (THREADS - 1)));
+const rouge = thread(0.24);
+---
+
+<svg class="ribbon" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
+  <defs>
+    {/* Light sliding along the cloth: the threads brighten and dim as they travel. */}
+    <linearGradient id="sheen" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={W} y2="0">
+      <stop offset="0" stop-color="currentColor" stop-opacity=".3"></stop>
+      <stop offset=".2" stop-color="currentColor" stop-opacity=".75"></stop>
+      <stop offset=".42" stop-color="currentColor" stop-opacity=".28"></stop>
+      <stop offset=".63" stop-color="currentColor" stop-opacity=".8"></stop>
+      <stop offset=".82" stop-color="currentColor" stop-opacity=".35"></stop>
+      <stop offset="1" stop-color="currentColor" stop-opacity=".7"></stop>
+    </linearGradient>
+  </defs>
+  <g class="silk" fill="none" stroke="url(#sheen)">
+    {threads.map((d) => <path d={d} />)}
+  </g>
+  <path class="rouge" d={rouge} fill="none"></path>
+</svg>
+
+<style>
+  /* As wide as the screen, and as tall as the wordmark's unit allows (--u is
+     set on the hero), so the ribbon and the wordmark keep the same vertical
+     relationship on every screen. On short, wide screens it simply stretches. */
+  .ribbon {
+    position: absolute;
+    right: calc(-1 * var(--gutter));
+    bottom: calc(-3.2 * var(--u));
+    z-index: -1;
+    width: 100vw;
+    height: calc(41.25 * var(--u));
+    overflow: visible;
+    color: var(--thread);
+    pointer-events: none;
+  }
+  path {
+    vector-effect: non-scaling-stroke;
+    stroke-width: 0.8px;
+  }
+  .rouge {
+    stroke: var(--rouge);
+    stroke-width: 1.3px;
+  }
+  /* On a phone the threads would merge into a solid band: keep every other one. */
+  @media (max-width: 46rem) {
+    .silk path:nth-child(even) {
+      display: none;
+    }
+  }
+
+  /* The one moving moment on the page: the ribbon unrolls from east to west. */
+  @media (prefers-reduced-motion: no-preference) {
+    .ribbon {
+      animation: unroll 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    @keyframes unroll {
+      from {
+        clip-path: inset(-20% 0 -20% 100%);
+      }
+      to {
+        clip-path: inset(-20% 0 -20% 0);
+      }
+    }
+  }
+</style>

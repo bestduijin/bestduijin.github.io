@@ -1,0 +1,56 @@
+---
+import '../styles/global.css';
+import roman from '@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-normal.woff2?url';
+import italic from '@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-italic.woff2?url';
+import { copy, site, type Lang } from '../copy';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const c = copy[lang];
+const canonical = new URL(c.path, site.url).href;
+
+// Bodoni Moda is split into two families that share the same two files.
+// "Bodoni Moda" covers letters and digits only, so Chinese text keeps its own
+// full-width punctuation; "Bodoni Moda Punct" adds dashes and curly quotes and
+// is used on the English page only (see global.css).
+const LETTERS = 'U+0020-007E,U+00A0-00FF,U+0131,U+0152-0153,U+02C6,U+02DA,U+02DC';
+const PUNCT = 'U+2010-2015,U+2018-201F,U+2026,U+2032-2033,U+2039-203A';
+const face = (family: string, style: string, url: string, range: string) =>
+  `@font-face{font-family:'${family}';font-style:${style};font-weight:400 900;font-display:swap;src:url(${url}) format('woff2');unicode-range:${range}}`;
+const fonts = [
+  face('Bodoni Moda', 'normal', roman, LETTERS),
+  face('Bodoni Moda', 'italic', italic, LETTERS),
+  face('Bodoni Moda Punct', 'normal', roman, PUNCT),
+  face('Bodoni Moda Punct', 'italic', italic, PUNCT),
+].join('');
+---
+
+<!doctype html>
+<html lang={c.htmlLang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{c.title}</title>
+    <meta name="description" content={c.description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="zh-Hans" href={new URL(copy.zh.path, site.url).href} />
+    <link rel="alternate" hreflang="en" href={new URL(copy.en.path, site.url).href} />
+    <link rel="alternate" hreflang="x-default" href={new URL(copy.zh.path, site.url).href} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Serico" />
+    <meta property="og:title" content={c.title} />
+    <meta property="og:description" content={c.description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="theme-color" content="#dcecf0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#131b21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href={italic} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={roman} as="font" type="font/woff2" crossorigin />
+    <style is:inline set:html={fonts}></style>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
