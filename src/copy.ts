@@ -4,7 +4,7 @@
 export type Lang = 'zh' | 'en';
 
 export const site = {
-  url: 'https://bestduijin.github.io',
+  url: 'https://serico.ai',
   github: { label: 'github.com/bestduijin', href: 'https://github.com/bestduijin' },
   year: 2026,
 };
@@ -13,6 +13,12 @@ export const site = {
 // so browsers and screen readers treat it as that language.
 type Stop = { word: string; lang: string; from: string; means: string };
 
+// One number in the row under the introduction: the figure, then what it counts.
+type Figure = { value: string; label: string };
+
+// One thing Serico can do, shown as one of three columns.
+type Skill = { title: string; body: string };
+
 type Copy = {
   htmlLang: string;
   path: string;
@@ -20,9 +26,12 @@ type Copy = {
   description: string;
   other: { label: string; href: string; hreflang: string };
   say: string;
-  lead: string[]; // one sentence per line; joined, it is the full introduction
-  name: { heading: string; body: string[]; stops: Stop[] };
+  headline: string; // the one line under the wordmark
+  intro: string[]; // one sentence per line, under the headline
+  figures: Figure[];
+  skills: { heading: string; items: Skill[] };
   now: { heading: string; body: string[] };
+  name: { heading: string; motto: string[]; body: string[]; stops: Stop[] };
   find: { heading: string; github: string };
   colophon: string;
 };
@@ -32,13 +41,41 @@ export const copy: Record<Lang, Copy> = {
     htmlLang: 'zh-Hans',
     path: '/',
     title: 'Serico',
-    description: 'Serico，名字取意于丝绸。分享做产品、做生意、探索新工具的经历。',
+    description: '把生意里的难题，变成能自动跑的系统。贸易、电商出身，用 AI 和代码解决业务问题。',
     other: { label: 'English', href: '/en/', hreflang: 'en' },
     say: '读作 SEH-ri-ko，塞里科',
-    // The owner's own words (2026-11-15). Keep verbatim.
-    lead: ['名字取意于丝绸。', '过去，丝绸把东方的好东西带向世界；', '今天，我分享自己做产品、做生意、探索新工具的经历。'],
+    // Version B, picked by the owner on 2026-11-23.
+    headline: '把生意里的难题，变成能自动跑的系统。',
+    intro: [
+      '我不是科班程序员。',
+      '我是做贸易、做电商出身的人，知道一个订单从哪里开始出问题。',
+      '现在我用 AI 和代码，把这些问题一个个修掉。',
+    ],
+    // The owner's own figures (2026-11-23).
+    figures: [
+      { value: '15 年', label: '贸易、电商一线' },
+      { value: '5 小时 → 5 分钟', label: '一道重复的活，交给自动化以后' },
+      { value: '6 套', label: '正在运行的自动化流程' },
+    ],
+    skills: {
+      heading: '我能做什么',
+      items: [
+        { title: '看懂流程', body: '从业务一线看出哪一步在浪费人、哪一步最容易出错。' },
+        { title: '搭起来', body: '用 AI 和代码把这一步做成工具，不用换掉整套系统。' },
+        { title: '让它自己跑', body: '部署上线，定时自动运行，出了问题会提醒人。' },
+      ],
+    },
+    now: {
+      heading: '现在在做',
+      body: [
+        '把做生意时摸到的门道、用 AI 解决问题的办法，写成文章，做成短视频。',
+        '新出的 AI 工具，也会自己上手试。',
+      ],
+    },
     name: {
       heading: '名字的来历',
+      // The owner's own words (2026-11-15). Keep verbatim.
+      motto: ['名字取意于丝绸。', '过去，丝绸把东方的好东西带向世界；', '今天，我分享自己做产品、做生意、探索新工具的经历。'],
       body: [
         'Serico 是意大利语，意思是「丝的」「像丝一样的」。它来自拉丁语 sericus，再往前是 Seres：古罗马人这样称呼东方那些产丝的人。',
         '丝绸往西走了几千公里，这个词跟着走了两千年。我借它做名字。',
@@ -50,13 +87,6 @@ export const copy: Record<Lang, Copy> = {
         { word: 'serico', lang: 'it', from: '意大利语', means: '丝的，像丝一样的' },
       ],
     },
-    now: {
-      heading: '现在在做',
-      body: [
-        '用代码做短视频：文案、配音、画面都由脚本生成。做过科普、商业拆解，还有一支动画短片。',
-        '新出的 AI 工具，也会自己上手试。',
-      ],
-    },
     find: { heading: '在哪找我', github: 'GitHub' },
     colophon: '这个页面用 Astro 搭建，放在 GitHub Pages 上。',
   },
@@ -66,16 +96,41 @@ export const copy: Record<Lang, Copy> = {
     path: '/en/',
     title: 'Serico',
     description:
-      'Serico. The name comes from silk. Notes from building products, doing business and exploring new tools.',
+      'Turning business headaches into systems that run themselves. From trade and e-commerce to AI and code.',
     other: { label: '中文', href: '/', hreflang: 'zh-Hans' },
     say: 'Say it SEH-ri-ko',
-    lead: [
-      'The name comes from silk.',
-      'Silk once carried the best of the East out into the world.',
-      'Today I share my own experience of building products, doing business and exploring new tools.',
+    headline: 'Turning business headaches into systems that run themselves.',
+    intro: [
+      'I am not a trained programmer. I came up through trade and e-commerce, so I know where an order starts to go wrong.',
+      'Now I use AI and code to fix those problems, one by one.',
     ],
+    figures: [
+      { value: '15 years', label: 'on the front line of trade and e-commerce' },
+      { value: '5 h → 5 min', label: 'one repetitive job, once it was automated' },
+      { value: '6', label: 'automated workflows running today' },
+    ],
+    skills: {
+      heading: 'What I do',
+      items: [
+        { title: 'Read the process', body: 'Spot, from the front line, which step wastes people’s time and which one breaks most often.' },
+        { title: 'Build the fix', body: 'Turn that step into a tool with AI and code, without replacing the whole system.' },
+        { title: 'Let it run', body: 'Deploy it, run it on a schedule, and alert a person when something goes wrong.' },
+      ],
+    },
+    now: {
+      heading: 'Now',
+      body: [
+        'I write articles and make short videos about what business has taught me, and how AI can solve real problems.',
+        'When a new AI tool comes out, I try it myself.',
+      ],
+    },
     name: {
       heading: 'The name',
+      motto: [
+        'The name comes from silk.',
+        'Silk once carried the best of the East out into the world.',
+        'Today I share my own experience of building products, doing business and exploring new tools.',
+      ],
       body: [
         'Serico is Italian for “of silk”, or “silken”. It comes from the Latin sericus, and before that from Seres, the Romans’ name for the people of the East who made silk.',
         'Silk travelled thousands of kilometres west. The word has been travelling for two thousand years. I borrowed it.',
@@ -85,13 +140,6 @@ export const copy: Record<Lang, Copy> = {
         { word: 'Seres', lang: 'la', from: 'Latin', means: 'the silk people' },
         { word: 'sericus', lang: 'la', from: 'Latin', means: 'of silk' },
         { word: 'serico', lang: 'it', from: 'Italian', means: 'of silk, silken' },
-      ],
-    },
-    now: {
-      heading: 'Now',
-      body: [
-        'I make short videos with code: scripts generate the text, the voice-over and the pictures. So far, a few explainers, some business breakdowns and one animated short.',
-        'When a new AI tool comes out, I try it myself.',
       ],
     },
     find: { heading: 'Find me', github: 'GitHub' },

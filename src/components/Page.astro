@@ -26,17 +26,55 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
         <Ribbon />
         <h1 class="wordmark" lang="it">Serico</h1>
       </div>
-      <p class="lead">
-        {c.lead.map((sentence) => <span class="sentence">{phrases(sentence).map((phrase) => <span class="phrase">{phrase}</span>)}</span>)}
-      </p>
       <p class="say">{c.say}</p>
+      <p class="headline">
+        <span class="sentence">{phrases(c.headline).map((phrase) => <span class="phrase">{phrase}</span>)}</span>
+      </p>
+      <p class="lead">
+        {c.intro.map((sentence) => <span class="sentence">{phrases(sentence).map((phrase) => <span class="phrase">{phrase}</span>)}</span>)}
+      </p>
+      <dl class="figures">
+        {
+          c.figures.map((f) => (
+            <div>
+              <dt>{f.label}</dt>
+              <dd>{f.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
     </div>
   </header>
 
   <main>
+    <section class="row wide" aria-labelledby="skills">
+      <h2 id="skills">{c.skills.heading}</h2>
+      <ol class="col skills">
+        {
+          c.skills.items.map((s, i) => (
+            <li>
+              <span class="num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="row" aria-labelledby="now">
+      <h2 id="now">{c.now.heading}</h2>
+      <div class="col">
+        {c.now.body.map((p) => <p>{p}</p>)}
+      </div>
+    </section>
+
     <section class="row" aria-labelledby="name">
       <h2 id="name">{c.name.heading}</h2>
       <div class="col">
+        <p class="motto">
+          {c.name.motto.map((sentence) => <span class="sentence">{phrases(sentence).map((phrase) => <span class="phrase">{phrase}</span>)}</span>)}
+        </p>
         {c.name.body.map((p) => <p set:html={cite(p)} />)}
         <ol class="stops">
           {
@@ -49,13 +87,6 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
             ))
           }
         </ol>
-      </div>
-    </section>
-
-    <section class="row" aria-labelledby="now">
-      <h2 id="now">{c.now.heading}</h2>
-      <div class="col">
-        {c.now.body.map((p) => <p>{p}</p>)}
       </div>
     </section>
 
@@ -107,10 +138,45 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     letter-spacing: -0.02em;
   }
   /* The ribbon's tail leaves the page just under the wordmark; the text starts below it. */
+  .headline {
+    margin: max(1.25rem, 4 * var(--u)) 0 0;
+    font-size: clamp(1.35rem, 6.2vw, 2.6rem);
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+  }
   .lead {
-    margin: max(1.5rem, 5.5 * var(--u)) 0 0;
-    font-size: clamp(1rem, 5.1vw, 1.75rem);
+    margin: 1.1rem 0 0;
+    max-width: 36em;
+    color: var(--ink-soft);
+    font-size: clamp(1rem, 3.6vw, 1.2rem);
     line-height: 1.8;
+  }
+
+  /* Three numbers in a row, the figure large and its meaning under it. */
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, max-content));
+    gap: 1.25rem clamp(2rem, 6vw, 5rem);
+    margin: clamp(1.75rem, 4svh, 2.75rem) 0 0;
+  }
+  .figures div {
+    display: flex;
+    flex-direction: column-reverse;
+    border-top: 1px solid var(--rouge);
+    padding-top: 0.8rem;
+  }
+  .figures dd {
+    margin: 0;
+    font-size: clamp(1.5rem, 4.2vw, 2.25rem);
+    line-height: 1.2;
+    white-space: nowrap;
+    font-variant-numeric: lining-nums;
+  }
+  .figures dt {
+    margin-top: 0.35rem;
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    line-height: 1.5;
   }
   /* One sentence per line; a sentence too long for the screen splits evenly. */
   .sentence {
@@ -128,7 +194,7 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     line-height: 1.5;
   }
   .say {
-    margin: 1.6rem 0 0;
+    margin: 0.75rem 0 0;
     color: var(--ink-soft);
     font-size: 0.95rem;
   }
@@ -155,6 +221,48 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
   }
   .col > p + p {
     margin-top: 1.1em;
+  }
+  .wide {
+    grid-template-columns: minmax(0, 13rem) minmax(0, 52rem);
+  }
+
+  /* ---------- What I do: three steps side by side ---------- */
+  .skills {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem clamp(1.25rem, 3vw, 2.5rem);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .skills li {
+    border-top: 1px solid var(--thread);
+    padding-top: 1rem;
+  }
+  .num {
+    display: block;
+    color: var(--rouge);
+    font-family: var(--font-en);
+    font-style: italic;
+    font-size: 0.9rem;
+  }
+  .skills h3 {
+    margin: 0.35rem 0 0.5rem;
+    font-size: 1.2em;
+    font-weight: 400;
+  }
+  .skills p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.95em;
+    line-height: 1.7;
+  }
+
+  /* The owner's own lines about the name, kept as they were written. */
+  .motto {
+    margin: 0 0 1.6em;
+    font-size: 1.15em;
+    line-height: 1.8;
   }
 
   /* ---------- The name's journey: four stops on one rouge thread ---------- */
@@ -245,6 +353,10 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
   }
   /* ---------- Phones: the thread runs downward ---------- */
   @media (max-width: 46rem) {
+    .figures,
+    .skills {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .stops {
       grid-template-columns: minmax(0, 1fr);
       row-gap: 1.5rem;
