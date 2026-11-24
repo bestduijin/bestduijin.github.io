@@ -16,7 +16,10 @@ type Stop = { word: string; lang: string; from: string; means: string };
 // One number in the row under the introduction: the figure, then what it counts.
 type Figure = { value: string; label: string };
 
-// One thing Serico can do, shown as one of three columns.
+// One published piece under "Latest": newest first. `where` is the platform, e.g. 公众号, 小红书, YouTube.
+type Post = { kind: string; where: string; title: string; date: string; href: string };
+
+// One thing Serico can do, shown as one of three cards.
 type Skill = { title: string; body: string };
 
 type Copy = {
@@ -33,7 +36,8 @@ type Copy = {
   figures: Figure[];
   skills: { heading: string; items: Skill[]; demo: string };
   now: { heading: string; body: string[] };
-  name: { heading: string; motto: string[]; body: string[]; stops: Stop[] };
+  latest: { heading: string; empty: string; items: Post[] };
+  name: { heading: string; motto: string[]; stops: Stop[] };
   find: { heading: string; github: string };
   colophon: string;
 };
@@ -80,16 +84,19 @@ export const copy: Record<Lang, Copy> = {
       heading: '名字的来历',
       // The owner's own words (2026-11-15). Keep verbatim.
       motto: ['名字取意于丝绸。', '过去，丝绸把东方的好东西带向世界；', '今天，我分享自己做产品、做生意、探索新工具的经历。'],
-      body: [
-        'Serico 是意大利语，意思是「丝的」「像丝一样的」。它来自拉丁语 sericus，再往前是 Seres：古罗马人这样称呼东方那些产丝的人。',
-        '丝绸往西走了几千公里，这个词跟着走了两千年。我借它做名字。',
-      ],
       stops: [
         { word: '丝', lang: 'zh-Hans', from: '汉语', means: '有一种说法，后面这些词都从它来' },
         { word: 'Seres', lang: 'la', from: '拉丁语', means: '产丝的人' },
         { word: 'sericus', lang: 'la', from: '拉丁语', means: '丝的' },
         { word: 'serico', lang: 'it', from: '意大利语', means: '丝的，像丝一样的' },
       ],
+    },
+    latest: {
+      heading: '最新内容',
+      empty: '第一批文章和视频正在准备，发布以后会放在这里。',
+      // 发布一篇就在最前面加一条，例如：
+      // { kind: '文章', where: '公众号', title: '……', date: '2026-12-01', href: 'https://…' },
+      items: [],
     },
     find: { heading: '在哪找我', github: 'GitHub' },
     colophon: '这个页面用 Astro 搭建，放在 GitHub Pages 上。',
@@ -137,16 +144,17 @@ export const copy: Record<Lang, Copy> = {
         'Silk once carried the best of the East out into the world.',
         'Today I share my own experience of building products, doing business and exploring new tools.',
       ],
-      body: [
-        'Serico is Italian for “of silk”, or “silken”. It comes from the Latin sericus, and before that from Seres, the Romans’ name for the people of the East who made silk.',
-        'Silk travelled thousands of kilometres west. The word has been travelling for two thousand years. I borrowed it.',
-      ],
       stops: [
         { word: '丝', lang: 'zh-Hans', from: 'Chinese', means: 'silk; by one account, the root of the rest' },
         { word: 'Seres', lang: 'la', from: 'Latin', means: 'the silk people' },
         { word: 'sericus', lang: 'la', from: 'Latin', means: 'of silk' },
         { word: 'serico', lang: 'it', from: 'Italian', means: 'of silk, silken' },
       ],
+    },
+    latest: {
+      heading: 'Latest',
+      empty: 'The first articles and videos are on their way. They will appear here once published.',
+      items: [],
     },
     find: { heading: 'Find me', github: 'GitHub' },
     colophon: 'Built with Astro, hosted on GitHub Pages.',

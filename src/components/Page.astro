@@ -21,9 +21,16 @@ const toggle = (labels: [string, string]) => ({
   'data-play-label': labels[1],
 });
 
-// Latin words quoted as words are set in italic and tagged with their language.
-const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const cite = (s: string) => escape(s).replace(/\b(Seres|sericus)\b/g, '<i lang="la">$1</i>');
+// Line icons for the three cards in "What I do", stroked with the silk gradient.
+const ICONS = [
+  // read the process: a lens over a flow of steps
+  '<circle cx="14" cy="14" r="8"/><path d="M20 20l7 7"/><path d="M3 30h6M13 30h6M23 30h6" opacity=".55"/><circle cx="14" cy="14" r="2.5"/>',
+  // build the fix: blocks stacking up
+  '<rect x="4" y="18" width="11" height="11" rx="2"/><rect x="17" y="18" width="11" height="11" rx="2"/><rect x="10.5" y="5" width="11" height="11" rx="2"/>',
+  // let it run: a loop that keeps going
+  '<path d="M27 12a11 11 0 1 0 1.5 7"/><path d="M27 4v8h-8"/><path d="M13.5 12.5v7l6-3.5z"/>',
+];
+
 // Chinese has no spaces, so a browser may break a line in the middle of a word.
 // In the introduction, lines may only break after punctuation.
 const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，、；。]?/g) ?? [s]) : [s]);
@@ -75,8 +82,11 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
         <ol class="skills">
           {
             c.skills.items.map((s, i) => (
-              <li>
-                <span class="num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+              <li class="card">
+                <span class="card-top" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 32 32" set:html={`<defs><linearGradient id="silk${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--silk-rose)"/><stop offset=".5" stop-color="var(--silk-gold)"/><stop offset="1" stop-color="var(--silk-teal)"/></linearGradient></defs><g fill="none" stroke="url(#silk${i})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[i]}</g>`} />
+                  <span class="num">{String(i + 1).padStart(2, '0')}</span>
+                </span>
                 <h3>{s.title}</h3>
                 <p>{s.body}</p>
               </li>
@@ -102,13 +112,44 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
       </div>
     </section>
 
-    <section class="row" aria-labelledby="name">
+    <section class="row" aria-labelledby="latest">
+      <h2 id="latest">{c.latest.heading}</h2>
+      <div class="col">
+        {
+          c.latest.items.length ? (
+            <ul class="posts">
+              {c.latest.items.map((p) => (
+                <li>
+                  <a href={p.href}>
+                    <span class="post-meta">
+                      {p.kind} · {p.where} · <time datetime={p.date}>{p.date}</time>
+                    </span>
+                    <span class="post-title">{p.title}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="empty">{c.latest.empty}</p>
+          )
+        }
+      </div>
+    </section>
+
+    <section class="row" aria-labelledby="find">
+      <h2 id="find">{c.find.heading}</h2>
+      <p class="col find">
+        <span class="where">{c.find.github}</span>
+        <a href={site.github.href} rel="me">{site.github.label}</a>
+      </p>
+    </section>
+
+    <section class="row coda" aria-labelledby="name">
       <h2 id="name">{c.name.heading}</h2>
       <div class="col">
         <p class="motto">
           {c.name.motto.map((sentence) => <span class="sentence">{phrases(sentence).map((phrase) => <span class="phrase">{phrase}</span>)}</span>)}
         </p>
-        {c.name.body.map((p) => <p set:html={cite(p)} />)}
         <ol class="stops">
           {
             c.name.stops.map((s) => (
@@ -121,14 +162,6 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
           }
         </ol>
       </div>
-    </section>
-
-    <section class="row" aria-labelledby="find">
-      <h2 id="find">{c.find.heading}</h2>
-      <p class="col find">
-        <span class="where">{c.find.github}</span>
-        <a href={site.github.href} rel="me">{site.github.label}</a>
-      </p>
     </section>
   </main>
 
@@ -421,41 +454,118 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     grid-template-columns: minmax(0, 13rem) minmax(0, 52rem);
   }
 
-  /* ---------- What I do: three steps side by side ---------- */
+  /* ---------- What I do: three cards edged with the silk of the opening scene ---------- */
   .skills {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2rem clamp(1.25rem, 3vw, 2.5rem);
+    gap: clamp(1rem, 2.2vw, 1.75rem);
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  .skills li {
-    border-top: 1px solid var(--thread);
-    padding-top: 1rem;
+  .card {
+    position: relative;
+    padding: 1.4rem 1.4rem 1.6rem;
+    border-radius: 18px;
+    border: 1px solid transparent;
+    /* a fill inside, the silk gradient showing through only on the border */
+    background:
+      linear-gradient(var(--card-fill), var(--card-fill)) padding-box,
+      linear-gradient(135deg, var(--silk-rose), var(--silk-gold) 50%, var(--silk-teal)) border-box;
+    box-shadow: 0 18px 40px -28px var(--card-glow);
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 24px 50px -24px var(--card-glow);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card,
+    .card:hover {
+      transition: none;
+      transform: none;
+    }
+  }
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .icon {
+    width: 2.4rem;
+    height: 2.4rem;
   }
   .num {
-    display: block;
     color: var(--rouge);
     font-family: var(--font-en);
     font-style: italic;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
   }
-  .skills h3 {
-    margin: 0.35rem 0 0.5rem;
-    font-size: 1.2em;
+  .card h3 {
+    margin: 1.1rem 0 0.5rem;
+    font-size: 1.25em;
     font-weight: 400;
   }
-  .skills p {
+  .card p {
     margin: 0;
     color: var(--ink-soft);
     font-size: 0.95em;
     line-height: 1.7;
   }
 
+  /* ---------- Latest ---------- */
+  .posts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .posts li + li {
+    border-top: 1px solid color-mix(in srgb, var(--thread) 35%, transparent);
+  }
+  .posts a {
+    display: block;
+    padding: 0.9rem 0;
+    text-decoration: none;
+    color: inherit;
+  }
+  .post-meta {
+    display: block;
+    color: var(--ink-soft);
+    font-size: 0.8em;
+  }
+  .post-title {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 1.1em;
+  }
+  .posts a:hover .post-title {
+    color: var(--rouge);
+  }
+  .empty {
+    margin: 0;
+    color: var(--ink-soft);
+  }
+  .empty::before {
+    content: '';
+    display: inline-block;
+    width: 0.5em;
+    height: 0.5em;
+    margin-right: 0.6em;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--silk-rose), var(--silk-gold));
+    vertical-align: 0.1em;
+  }
+
+  /* ---------- The name, as the page's closing note ---------- */
+  .coda {
+    border-top: 1px solid color-mix(in srgb, var(--thread) 30%, transparent);
+    margin-top: clamp(1.5rem, 4vw, 3rem);
+  }
   /* The owner's own lines about the name, kept as they were written. */
   .motto {
-    margin: 0 0 1.6em;
+    margin: 0;
     font-size: 1.15em;
     line-height: 1.8;
   }

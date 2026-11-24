@@ -9,6 +9,12 @@
   --ink-soft: #4b5f69;
   --thread: #36525f;
   --rouge: #9d2933;
+  /* The three colours of the silk ribbons in the opening painting, used as accents below it. */
+  --silk-rose: #d36a86;
+  --silk-gold: #c3923f;
+  --silk-teal: #379b90;
+  --card-fill: #e9f3f6;
+  --card-glow: rgb(157 41 51 / 0.4);
   --gutter: clamp(1.25rem, 6vw, 6.5rem);
 
   /* Chinese pages: Bodoni Moda supplies letters and digits only, the Song face
@@ -26,6 +32,11 @@
     --ink-soft: #8fa6b0;
     --thread: #9dbac4;
     --rouge: #e58b94;
+    --silk-rose: #ff9fb6;
+    --silk-gold: #f2c77f;
+    --silk-teal: #7fe0d4;
+    --card-fill: #18222a;
+    --card-glow: rgb(255 159 182 / 0.35);
   }
 }
 
