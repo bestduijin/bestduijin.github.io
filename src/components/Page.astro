@@ -1,7 +1,6 @@
 ---
 // The whole page, in one language. Wording comes from src/copy.ts.
 import Base from '../layouts/Base.astro';
-import Ribbon from './Ribbon.astro';
 import { copy, site, type Lang } from '../copy';
 
 interface Props {
@@ -9,6 +8,18 @@ interface Props {
 }
 const { lang } = Astro.props;
 const c = copy[lang];
+
+// The demo loop under "What I do": a 15-second automation dashboard, rendered from
+// B003/讲解视频/主页封面_自动化大屏.
+const demo = (ext: 'mp4' | 'jpg') => `/cover/cover_${lang}_h.${ext}`;
+// The opening scene: a painted illustration (B003/个人主页_插画), with light that moves over it (src/scripts/sky.ts).
+const toggle = (labels: [string, string]) => ({
+  'aria-label': labels[0],
+  'data-pause': c.motion.pause,
+  'data-play': c.motion.play,
+  'data-pause-label': labels[0],
+  'data-play-label': labels[1],
+});
 
 // Latin words quoted as words are set in italic and tagged with their language.
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -19,11 +30,22 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
 ---
 
 <Base lang={lang}>
-  <header class="hero">
-    <a class="switch" href={c.other.href} hreflang={c.other.hreflang} lang={c.other.hreflang}>{c.other.label}</a>
+  <header class="hero" data-motion="sky">
+    <div class="scene" aria-hidden="true">
+      <div class="drift">
+        <picture>
+          <source media="(max-aspect-ratio: 3/4)" srcset="/hero/hero_tall.webp" />
+          <img class="art" src="/hero/hero_wide.webp" alt="" fetchpriority="high" />
+        </picture>
+        <canvas class="sky"></canvas>
+      </div>
+    </div>
+    <div class="bar-top">
+      <button class="motion-toggle" type="button" hidden {...toggle(c.motion.hero)}>{c.motion.pause}</button>
+      <a class="switch" href={c.other.href} hreflang={c.other.hreflang} lang={c.other.hreflang}>{c.other.label}</a>
+    </div>
     <div class="intro">
       <div class="mark">
-        <Ribbon />
         <h1 class="wordmark" lang="it">Serico</h1>
       </div>
       <p class="say">{c.say}</p>
@@ -49,17 +71,28 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
   <main>
     <section class="row wide" aria-labelledby="skills">
       <h2 id="skills">{c.skills.heading}</h2>
-      <ol class="col skills">
-        {
-          c.skills.items.map((s, i) => (
-            <li>
-              <span class="num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-              <h3>{s.title}</h3>
-              <p>{s.body}</p>
-            </li>
-          ))
-        }
-      </ol>
+      <div class="col">
+        <ol class="skills">
+          {
+            c.skills.items.map((s, i) => (
+              <li>
+                <span class="num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                <h3>{s.title}</h3>
+                <p>{s.body}</p>
+              </li>
+            ))
+          }
+        </ol>
+        <figure class="demo" data-motion="video">
+          <video class="demo-video" muted loop playsinline preload="none" poster={demo('jpg')} disablepictureinpicture aria-hidden="true">
+            <source src={demo('mp4')} type="video/mp4" />
+          </video>
+          <figcaption>
+            <span>{c.skills.demo}</span>
+            <button class="motion-toggle" type="button" hidden {...toggle(c.motion.demo)}>{c.motion.pause}</button>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
     <section class="row" aria-labelledby="now">
@@ -105,6 +138,57 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
   </footer>
 </Base>
 
+<script>
+  import { startSky } from '../scripts/sky';
+
+  // Every moving part can be paused (WCAG 2.2.2 Pause, Stop, Hide), and nothing moves
+  // on its own when the visitor asks the system for reduced motion.
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+
+  for (const block of document.querySelectorAll<HTMLElement>('[data-motion]')) {
+    const button = block.querySelector<HTMLButtonElement>('.motion-toggle');
+    if (!button) continue;
+    // Plays unless reduced motion is on; the button is the visitor's own choice and wins.
+    let playing = !reduce.matches;
+    let visible = true;
+
+    let run: (on: boolean) => void;
+    if (block.dataset.motion === 'video') {
+      const video = block.querySelector('video')!;
+      video.muted = true;
+      run = (on) => {
+        if (on) video.play().catch(() => {});
+        else video.pause();
+      };
+    } else {
+      const sky = startSky(block.querySelector('canvas')!, block.querySelector('img')!);
+      run = (on) => sky.running(on);
+    }
+
+    const update = () => {
+      button.textContent = playing ? button.dataset.pause! : button.dataset.play!;
+      button.setAttribute('aria-label', playing ? button.dataset.pauseLabel! : button.dataset.playLabel!);
+      block.classList.toggle('still', !playing);
+      run(playing && visible); // only spend effort while on screen
+    };
+
+    new IntersectionObserver((entries) => {
+      visible = entries[0].isIntersecting;
+      update();
+    }).observe(block);
+    button.hidden = false;
+    button.addEventListener('click', () => {
+      playing = !playing;
+      update();
+    });
+    reduce.addEventListener('change', () => {
+      playing = !reduce.matches;
+      update();
+    });
+    update();
+  }
+</script>
+
 <style>
   /* ---------- Hero ---------- */
   .hero {
@@ -116,12 +200,122 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     overflow: clip;
     display: grid;
     grid-template-rows: auto 1fr;
+    row-gap: 2rem;
     min-height: min(100svh, 62vw + 20rem);
     padding: 1.5rem var(--gutter) clamp(2.5rem, 7svh, 5rem);
+    /* The hero always sits on the night-sky painting, in light and dark mode alike. */
+    --ink: #f3f1f6;
+    --ink-soft: #c9c6d8;
+    --thread: #c9c6d8;
+    --rouge: #ffa3b4;
+    --ground: #0c1330;
+    color: var(--ink);
+    background: #0c1330;
+  }
+
+  /* ---------- The painted scene and the light moving over it ---------- */
+  .scene {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+  }
+  /* The picture drifts very slowly, like a camera breathing. */
+  .drift {
+    position: absolute;
+    inset: 0;
+    animation: drift 36s ease-in-out infinite alternate;
+    transform-origin: 60% 30%;
+  }
+  .still .drift {
+    animation-play-state: paused;
+  }
+  @keyframes drift {
+    from {
+      transform: scale(1.02);
+    }
+    to {
+      transform: scale(1.09) translate(-1.2%, 0.8%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .drift {
+      animation: none;
+    }
+  }
+  .drift img,
+  .sky {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .drift img {
+    object-fit: cover;
+  }
+  /* A night veil under the words: the sky stays bright, the dunes where the text sits go dark. */
+  .scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to top, rgb(8 12 32 / 0.92) 0%, rgb(8 12 32 / 0.7) 30%, rgb(8 12 32 / 0.15) 58%, rgb(8 12 32 / 0) 70%),
+      linear-gradient(to right, rgb(8 12 32 / 0.55), rgb(8 12 32 / 0) 55%);
+  }
+  @media (max-width: 46rem) {
+    .scene::after {
+      background: linear-gradient(to top, rgb(8 12 32 / 0.95) 0%, rgb(8 12 32 / 0.8) 45%, rgb(8 12 32 / 0.35) 75%, rgb(8 12 32 / 0.2) 100%);
+    }
+  }
+  .bar-top {
+    justify-self: end;
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
   }
   .switch {
-    justify-self: end;
     font-size: 0.95rem;
+  }
+  /* Pause / play, for the scene and for the demo video. */
+  .motion-toggle {
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    background: color-mix(in srgb, var(--ground) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink-soft) 45%, transparent);
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem;
+    cursor: pointer;
+    flex: none;
+  }
+  .motion-toggle:hover {
+    color: var(--ink);
+  }
+  .motion-toggle:focus-visible {
+    outline: 2px solid var(--rouge);
+    outline-offset: 3px;
+  }
+  /* ---------- The demo video under "What I do" ---------- */
+  .demo {
+    margin: 2.75rem 0 0;
+  }
+  .demo video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    background: #070d16;
+    box-shadow: 0 18px 50px -20px rgb(0 0 0 / 0.45);
+  }
+  .demo figcaption {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-top: 0.85rem;
+    color: var(--ink-soft);
+    font-size: 0.85em;
+    line-height: 1.6;
   }
   .intro {
     align-self: end;
@@ -130,6 +324,7 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     position: relative;
   }
   .wordmark {
+    text-shadow: 0 2px 30px rgb(8 12 32 / 0.5);
     margin: 0 0 0 -0.045em;
     font-size: calc(21 * var(--u));
     font-style: italic;

@@ -26,10 +26,12 @@ type Copy = {
   description: string;
   other: { label: string; href: string; hreflang: string };
   say: string;
+  // Pause buttons for the moving parts: the hero scene and the demo video.
+  motion: { pause: string; play: string; hero: [string, string]; demo: [string, string] };
   headline: string; // the one line under the wordmark
   intro: string[]; // one sentence per line, under the headline
   figures: Figure[];
-  skills: { heading: string; items: Skill[] };
+  skills: { heading: string; items: Skill[]; demo: string };
   now: { heading: string; body: string[] };
   name: { heading: string; motto: string[]; body: string[]; stops: Stop[] };
   find: { heading: string; github: string };
@@ -44,6 +46,7 @@ export const copy: Record<Lang, Copy> = {
     description: '把生意里的难题，变成能自动跑的系统。贸易、电商出身，用 AI 和代码解决业务问题。',
     other: { label: 'English', href: '/en/', hreflang: 'en' },
     say: '读作 SEH-ri-ko，塞里科',
+    motion: { pause: '暂停', play: '播放', hero: ['暂停首屏动画', '播放首屏动画'], demo: ['暂停演示视频', '播放演示视频'] },
     // Version B, picked by the owner on 2026-11-23.
     headline: '把生意里的难题，变成能自动跑的系统。',
     intro: [
@@ -59,6 +62,7 @@ export const copy: Record<Lang, Copy> = {
     ],
     skills: {
       heading: '我能做什么',
+      demo: '演示：一轮自动选品 → 修图 → 写介绍 → 上架 → 分析，五分钟内跑完。商品和数字是演示用的。',
       items: [
         { title: '看懂流程', body: '从业务一线看出哪一步在浪费人、哪一步最容易出错。' },
         { title: '搭起来', body: '用 AI 和代码把这一步做成工具，不用换掉整套系统。' },
@@ -99,6 +103,7 @@ export const copy: Record<Lang, Copy> = {
       'Turning business headaches into systems that run themselves. From trade and e-commerce to AI and code.',
     other: { label: '中文', href: '/', hreflang: 'zh-Hans' },
     say: 'Say it SEH-ri-ko',
+    motion: { pause: 'Pause', play: 'Play', hero: ['Pause the opening animation', 'Play the opening animation'], demo: ['Pause the demo video', 'Play the demo video'] },
     headline: 'Turning business headaches into systems that run themselves.',
     intro: [
       'I am not a trained programmer. I came up through trade and e-commerce, so I know where an order starts to go wrong.',
@@ -111,6 +116,7 @@ export const copy: Record<Lang, Copy> = {
     ],
     skills: {
       heading: 'What I do',
+      demo: 'Demo: one round of sourcing → retouch → copy → listing → analytics, done in under five minutes. Products and figures are for illustration.',
       items: [
         { title: 'Read the process', body: 'Spot, from the front line, which step wastes people’s time and which one breaks most often.' },
         { title: 'Build the fix', body: 'Turn that step into a tool with AI and code, without replacing the whole system.' },
