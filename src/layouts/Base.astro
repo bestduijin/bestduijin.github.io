@@ -1,8 +1,9 @@
 ---
 import '../styles/global.css';
-import roman from '@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-normal.woff2?url';
-import italic from '@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-italic.woff2?url';
-import jost from '@fontsource-variable/jost/files/jost-latin-wght-normal.woff2?url';
+import mark from '@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-italic.woff2?url';
+import display from '@fontsource/dm-serif-display/files/dm-serif-display-latin-400-normal.woff2?url';
+import displayItalic from '@fontsource/dm-serif-display/files/dm-serif-display-latin-400-italic.woff2?url';
+import sans from '@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2?url';
 import { copy, site, type Lang } from '../copy';
 
 interface Props {
@@ -14,23 +15,33 @@ const canonical = new URL(c.path, site.url).href;
 // Open Graph wants language_TERRITORY (https://ogp.me/#optional).
 const OG_LOCALE: Record<Lang, string> = { en: 'en_US', zh: 'zh_CN' };
 
-// Bodoni Moda is split into two families that share the same two files.
-// "Bodoni Moda" covers letters and digits only, so Chinese text keeps its own
-// full-width punctuation; "Bodoni Moda Punct" adds dashes and curly quotes and
-// is used on the English page only (see global.css).
+// Three Latin faces (all SIL OFL 1.1, via Fontsource, latin subset only, served from this site):
+// - Bodoni Moda, italic only, for the name Serico and its forebears (the wordmark, the sign in the
+//   footer, Seres / sericus / serico). Nothing else uses it.
+// - DM Serif Display (400, roman and italic) for large type: the two opening lines, the numbers,
+//   the headings and the motto. Its only weight is 400: weight steps are made with size.
+// - Hanken Grotesk (variable) for body text and small type below the opening scene, the buttons,
+//   the language link and note, the tags beside the numbers and the footer.
+// The display and body faces are split into two families sharing one file: the plain family
+// covers letters and digits only, so Chinese text keeps its own full-width punctuation; the
+// "Punct" family adds dashes and curly quotes and is used on the English page only (global.css).
+// The browser downloads a file only when the page draws a character in its range.
 const LETTERS = 'U+0020-007E,U+00A0-00FF,U+0131,U+0152-0153,U+02C6,U+02DA,U+02DC';
 const PUNCT = 'U+2010-2015,U+2018-201F,U+2026,U+2032-2033,U+2039-203A';
-const face = (family: string, style: string, url: string, range: string, weight = '400 900') =>
-  `@font-face{font-family:'${family}';font-style:${style};font-weight:${weight};font-display:swap;src:url(${url}) format('woff2');unicode-range:${range}}`;
-// Jost (SIL OFL 1.1, via Fontsource) is the body face below the opening scene, split the same
-// way. Only used below the fold, so it is not preloaded.
+const face = (family: string, style: string, url: string, range: string, weight = '400', extra = '') =>
+  `@font-face{font-family:'${family}';font-style:${style};font-weight:${weight};font-display:swap;src:url(${url}) format('woff2');unicode-range:${range}${extra}}`;
+// DM Serif Display is set at 98%. On the Chinese page it sits inside Song Bold lines, where it
+// reads darker and larger than the characters around it: there it is held to SIZE_ZH.
+const SIZE_ZH = '94%';
+const DM = `;size-adjust:${lang === 'zh' ? SIZE_ZH : '98%'}`;
 const fonts = [
-  face('Bodoni Moda', 'normal', roman, LETTERS),
-  face('Bodoni Moda', 'italic', italic, LETTERS),
-  face('Bodoni Moda Punct', 'normal', roman, PUNCT),
-  face('Bodoni Moda Punct', 'italic', italic, PUNCT),
-  face('Jost', 'normal', jost, LETTERS, '100 900'),
-  face('Jost Punct', 'normal', jost, PUNCT, '100 900'),
+  face('Bodoni Moda', 'italic', mark, LETTERS),
+  face('DM Serif Display', 'normal', display, LETTERS, '400', DM),
+  face('DM Serif Display', 'italic', displayItalic, LETTERS, '400', DM),
+  face('DM Serif Display Punct', 'normal', display, PUNCT, '400', DM),
+  face('DM Serif Display Punct', 'italic', displayItalic, PUNCT, '400', DM),
+  face('Hanken Grotesk', 'normal', sans, LETTERS, '100 900'),
+  face('Hanken Grotesk Punct', 'normal', sans, PUNCT, '100 900'),
 ].join('');
 ---
 
@@ -55,8 +66,8 @@ const fonts = [
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#070b1a" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preload" href={italic} as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href={roman} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={mark} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={display} as="font" type="font/woff2" crossorigin />
     <style is:inline set:html={fonts}></style>
   </head>
   <body>

@@ -63,8 +63,15 @@ const SLOPE = 0.15;
 // and never bends tighter than MIN_RADIUS.
 const SPACING = 380;
 const MIN_RADIUS = 80;
+// A safety stop only: past this many ms the best curve found so far is drawn. Which curve is found
+// otherwise depends on the page alone, never on the machine's speed (a time limit that cut the
+// tries short drew sharp corners on slow laptops); the slowest page needs about 0.2 s here, about
+// 0.8 s on a machine four times slower.
+const LIMIT = 2000;
 // The arc into the line above the words: as wide as there is room for, up to this.
-const LANDING = 160;
+// (160 until 2026-11-27: on wide English pages that set the last drop 40px from the screen's edge,
+// and the swing across, coming in nearly level, could not turn down into it gently enough)
+const LANDING = 130;
 // The point being drawn sits this far down the screen, and the line under the words is drawn
 // over this much of a screen of scrolling.
 const HEAD = 0.75;
@@ -124,9 +131,29 @@ const bounds = (boxes: Box[]): Box =>
     b: -Infinity,
   });
 
+// The boxes that can be near a depth: each list of boxes is filed once into bands BAND px tall
+// (a box in every band it reaches, grown by more than any clearance), keeping their order, so
+// the check below looks at a handful of boxes instead of all of them and still finds the same
+// first one.
+const BAND = 64;
+const REACH = 60; // more than the largest clearance down the page (46)
+const banded = new WeakMap<Box[], Box[][]>();
+function nearDepth(boxes: Box[], y: number): Box[] {
+  if (y < 0) return boxes;
+  let bands = banded.get(boxes);
+  if (!bands) {
+    bands = [];
+    for (const b of boxes) {
+      for (let k = Math.max(0, Math.floor((b.t - REACH) / BAND)); k <= Math.floor((b.b + REACH) / BAND); k++) (bands[k] ??= []).push(b);
+    }
+    banded.set(boxes, bands);
+  }
+  return bands[Math.floor(y / BAND)] ?? [];
+}
+
 // The first box a point is inside, once each box is grown by its kind's clearance.
 const touching = (p: Pt, boxes: Box[], which: 'search' | 'least') =>
-  boxes.find((b) => {
+  nearDepth(boxes, p.y).find((b) => {
     const pad = PAD[b.kind][which];
     return p.x > b.l - pad.x && p.x < b.r + pad.x && p.y > b.t - pad.y && p.y < b.b + pad.y;
   });
@@ -337,6 +364,8 @@ export function startSilk(root: HTMLElement) {
   plan.lineOnly = knotsAndLine;
 
   function plan(): { fall: string; line: string; knots: Pt[] } {
+    // Past this, no more is tried: the best curve found so far is used (see LIMIT).
+    const giveUp = performance.now() + LIMIT;
     const origin = root.getBoundingClientRect();
     const W = root.clientWidth;
     const knots = [...stops!.querySelectorAll('.knot')].map((k) => {
@@ -494,9 +523,11 @@ export function startSilk(root: HTMLElement) {
           if (n <= 6) {
             for (const i of ends) {
               const m = moved.get(i) ?? { x: 0, y: 0 };
-              const next = { x: m.x + away.x * 14, y: m.y + away.y * 14 };
+              // (the point above the end only up or down: it stays straight above the end, so the
+              // curve still comes down into the arc without a corner)
+              const next = { x: m.x + (i === lead ? 0 : away.x * 14), y: m.y + away.y * 14 };
               const p = { x: route[i].x + next.x, y: route[i].y + next.y };
-              if (clearPoint(p)) {
+              if ((next.x !== m.x || next.y !== m.y) && clearPoint(p)) {
                 moved.set(i, next);
                 shifted = true;
               }
@@ -535,10 +566,12 @@ export function startSilk(root: HTMLElement) {
       // (whole) a little in eight directions, or leaving one out; keep whichever change widens
       // the tightest bend the most while the curve stays clear. Repeat until every bend is wide
       // enough or nothing helps.
+      // (the bends are measured on into the start of the arc: where the two meet counts too)
+      const join = arc ? cubicPts(...arc, 40).slice(1, 5) : [];
       const bendOf = () => {
         const pieces = fit();
         const pts = sampleCurve(pieces);
-        return { pieces, clear: !tooClose(pts), bend: tightest(pts) };
+        return { pieces, clear: !tooClose(pts), bend: tightest([...pts, ...join]) };
       };
       let state = bendOf();
       // First, thin out: repairs can leave points bunched together, which makes small wiggles.
@@ -563,7 +596,7 @@ export function startSilk(root: HTMLElement) {
           picks = before;
         }
       }
-      for (let round = 0; round < 30 && state.bend.r < MIN_RADIUS; round++) {
+      for (let round = 0; round < 30 && state.bend.r < MIN_RADIUS && performance.now() < giveUp; round++) {
         const at = state.bend.at.y / DY;
         const near = picks
           .filter((i) => i !== route.length - 1 && i !== lead)
@@ -604,10 +637,11 @@ export function startSilk(root: HTMLElement) {
     // of those keeps every bend wide enough, sparser ones, which smooth out small jogs in a
     // narrow margin (768 wide, the long page: a jog beside "Now" before the swing across).
     let result: { pieces: [Pt, Pt, Pt, Pt][]; r: number; n: number; note: string } | null = null;
+    // Each try costs tens of milliseconds: it stops at the first that bends gently enough.
     for (const spacing of [SPACING, 300, 230, 170, 460, 540]) {
       const t = attempt(spacing);
       if (t && (!result || t.r > result.r)) result = t;
-      if (result && result.r >= MIN_RADIUS) break;
+      if (result && (result.r >= MIN_RADIUS || performance.now() > giveUp)) break;
     }
     if (!result) return why('line: route touches text'), onlyLine;
     why(`full (${result.n} points; tightest bend ${Math.round(result.r)}px)`);

@@ -78,11 +78,12 @@ export const copy: Record<Lang, Copy> = {
     htmlLang: 'zh-Hans',
     path: '/zh/',
     title: 'Serico',
-    description: 'Serico，电商人。把生意里的难题，使用 AI 变成能赚钱的系统。',
+    description: 'Serico。电商人。生意难题进，赚钱的 AI 系统出。',
     other: { label: 'English', href: '/', hreflang: 'en' },
     motion: { pause: '暂停', play: '播放', hero: ['暂停动画', '播放动画'], demo: ['暂停演示视频', '播放演示视频'] },
-    // The owner's final wording (2026-11-26).
-    headline: ['我是 Serico，电商人。', '把生意里的难题，使用 AI 变成能赚钱的系统。'],
+    // The owner's final wording (2026-11-26, second round). The second line is one in, one out:
+    // it may break only at its comma.
+    headline: ['Serico。电商人。', '生意难题进，赚钱的 AI 系统出。'],
     // The owner's own figures (2026-11-23); tags and links 2026-11-26.
     figures: [
       { value: '15 年', tag: '电商', to: 'signs' },
@@ -200,10 +201,11 @@ export const copy: Record<Lang, Copy> = {
     htmlLang: 'en',
     path: '/',
     title: 'Serico',
-    description: 'Serico. Fifteen years in ecommerce. I use AI to turn business headaches into systems that make money.',
+    description: 'Serico. Ecommerce. Business problems in. Profitable AI systems out.',
     other: { label: '中文', href: '/zh/', hreflang: 'zh-Hans' },
     motion: { pause: 'Pause', play: 'Play', hero: ['Pause motion', 'Play motion'], demo: ['Pause the demo video', 'Play the demo video'] },
-    headline: ["I'm Serico. Fifteen years in ecommerce.", 'I use AI to turn business headaches into systems that make money.'],
+    // The owner's final wording (2026-11-26, second round); the second line may break only after "in.".
+    headline: ['Serico. Ecommerce.', 'Business problems in. Profitable AI systems out.'],
     figures: [
       { value: '15 years', tag: 'ecommerce', to: 'signs' },
       { value: '5 h → 5 min', tag: 'efficiency', to: 'work' },

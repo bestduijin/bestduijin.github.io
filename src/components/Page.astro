@@ -30,6 +30,14 @@ const offers = Object.entries(hints).filter(([, h]) => h.to !== lang);
 // Chinese has no spaces, so a browser may break a line in the middle of a word.
 // In large type (the introduction, the headings, the motto), lines may only break after punctuation.
 const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，、；。]?/g) ?? [s]) : [s]);
+// The two opening lines split once, at their first pause: Chinese after the first comma or full
+// stop that is not the last character, English after the first full stop.
+const halves = (s: string) => {
+  const m = lang === 'zh' ? s.match(/^(.+?[，。])(.+)$/) : s.match(/^(.+?\.)\s+(.+)$/);
+  // English keeps its space at the end of the first half (it hangs there, unseen), so the line still
+  // reads as words; the visible pause is the gap between the halves (CSS).
+  return m ? [lang === 'en' ? m[1] + ' ' : m[1], m[2]] : [s];
+};
 
 // The two paintings below the opening scene (public/art/, cropped from the opening painting for
 // now). Replace the files to change them; the page only knows their names.
@@ -46,7 +54,10 @@ const words = (s: string) => {
   if (lang !== 'zh') return [s];
   const out: string[] = [];
   for (const { segment, isWordLike } of segmenter.segment(s)) {
-    if (!isWordLike && out.length) out[out.length - 1] += segment;
+    // A space (between Chinese and Latin, as in 交给 AI) stays a plain space between the words:
+    // held at the end of an inline-block word, it would collapse and the gap would vanish.
+    if (!segment.trim()) out.push(' ');
+    else if (!isWordLike && out.length && out[out.length - 1] !== ' ') out[out.length - 1] += segment;
     else out.push(segment);
   }
   return out;
@@ -103,14 +114,13 @@ const STAGE_SECONDS = 3;
       <div class="mark">
         <h1 class="wordmark" lang="it">Serico</h1>
       </div>
-      {/* Two lines: a short one, then a long one that stays on one line from tablets up. */}
+      {/* Two lines, one each from 1024 wide. Each line is two halves (the second: one in, one out);
+          a line too wide for a phone breaks only between its halves. */}
       <p class="headline">
         {
           c.headline.map((line, i) => (
             <span class:list={['sentence', i === 1 && 'long']}>
-              {phrases(line).map((phrase) => (
-                <span class="phrase">{phrase.split(/(\S+-\S+)/).map((bit, k) => (k % 2 ? <span class="glue">{bit}</span> : bit))}</span>
-              ))}
+              {halves(line).map((half) => <span class="half">{half}</span>)}
             </span>
           ))
         }
@@ -121,7 +131,19 @@ const STAGE_SECONDS = 3;
           c.figures.map((f) => (
             <li>
               <a href={`#${f.to}`}>
-                <span class="value">{f.value}</span>
+                <span class="value">
+                  {f.value.split('→').map((bit, k) => (
+                    <>
+                      {k > 0 && (
+                        <span class="arrow">
+                          <svg viewBox="0 0 24 12" aria-hidden="true" focusable="false"><path d="M1.5 6H21M15.5 1.5L21.5 6L15.5 10.5" /></svg>
+                          <span class="visually-hidden">→</span>
+                        </span>
+                      )}
+                      {bit}
+                    </>
+                  ))}
+                </span>
                 <span class="tag">{f.tag}</span>
                 <span class="cue" aria-hidden="true">↓</span>
               </a>
@@ -155,12 +177,12 @@ const STAGE_SECONDS = 3;
 
     <main>
       <section class="act signs" aria-labelledby="signs">
-        <h2 id="signs" class="display">{big(c.signs.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <h2 id="signs" class="display">{big(c.signs.heading).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h2>
         <ul class="signs-list">
           {
             c.signs.items.map((s) => (
               <li>
-                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h3>
+                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h3>
                 <p>{para(s.body)[0]}<span class="glue">{para(s.body)[1]}</span></p>
               </li>
             ))
@@ -169,13 +191,13 @@ const STAGE_SECONDS = 3;
       </section>
 
       <section class="act work" aria-labelledby="work">
-        <h2 id="work" class="display">{big(c.work.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <h2 id="work" class="display">{big(c.work.heading).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h2>
         <ol class="steps">
           {
             c.work.steps.map((s, i) => (
               <li>
                 <span class="step-num" aria-hidden="true">{num(i)}</span>
-                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h3>
+                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h3>
                 <p>{para(s.body)[0]}<span class="glue">{para(s.body)[1]}</span></p>
               </li>
             ))
@@ -184,7 +206,7 @@ const STAGE_SECONDS = 3;
       </section>
 
       <section class="act demo" aria-labelledby="demo">
-        <h2 id="demo" class="display">{big(c.demo.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <h2 id="demo" class="display">{big(c.demo.heading).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h2>
         {/* The lead, with the video's pause button on its right (under the video on phones),
             the video, the table of what each stage hands over, and two notes under it. */}
         <div class="demo-body" data-motion="video">
@@ -233,12 +255,12 @@ const STAGE_SECONDS = 3;
       </section>
 
       <section class="act limits" aria-labelledby="limits">
-        <h2 id="limits" class="display">{big(c.limits.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <h2 id="limits" class="display">{big(c.limits.heading).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h2>
         <ul class="limits-list">
           {
             c.limits.items.map((s) => (
               <li>
-                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h3>
+                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h3>
                 <p>{para(s.body)[0]}<span class="glue">{para(s.body)[1]}</span></p>
               </li>
             ))
@@ -247,7 +269,7 @@ const STAGE_SECONDS = 3;
       </section>
 
       <section class="act now" aria-labelledby="now">
-        <h2 id="now" class="display">{big(c.now.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <h2 id="now" class="display">{big(c.now.heading).map((p) => <span class="phrase">{p.map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}</h2>
         <div class="prose">
           {c.now.body.map((p) => <p>{para(p)[0]}<span class="glue">{para(p)[1]}</span></p>)}
         </div>
@@ -283,7 +305,7 @@ const STAGE_SECONDS = 3;
           </div>
           <h2 id="name" class="visually-hidden">{c.name.heading}</h2>
           <p class="motto">
-            {c.name.motto.map((sentence) => <span class="sentence">{words(sentence).map((w) => <span class="w">{w}</span>)}</span>)}
+            {c.name.motto.map((sentence) => <span class="sentence">{words(sentence).map((w) => (w === ' ' ? w : <span class="w">{w}</span>))}</span>)}
           </p>
         </div>
         <ol class="stops">
@@ -539,7 +561,10 @@ const STAGE_SECONDS = 3;
     grid-template-rows: auto 1fr;
     row-gap: 2rem;
     min-height: min(100svh, 62vw + 20rem);
-    padding: 1.5rem var(--gutter) clamp(2.5rem, 7svh, 5rem);
+    /* Room under the numbers (the scene's pause button sits on it from 1024 wide). Kept small:
+       the taller the words, the higher the wordmark climbs into the bright ribbons. */
+    --pad-end: clamp(2rem, 5svh, 4rem);
+    padding: 1.5rem var(--gutter) var(--pad-end);
     /* The hero always sits on the night-sky painting, in light and dark mode alike. */
     --ink: #f3f1f6;
     --ink-soft: #c9c6d8;
@@ -629,7 +654,8 @@ const STAGE_SECONDS = 3;
     pointer-events: none;
   }
   .switch {
-    font-size: 0.95rem;
+    font-family: var(--sans-en);
+    font-size: 0.9375rem;
     text-shadow:
       0 0 3px rgb(8 12 32 / 0.9),
       0 0 10px rgb(8 12 32 / 0.8),
@@ -638,6 +664,9 @@ const STAGE_SECONDS = 3;
   /* ---------- The language note, hanging just under the language link ---------- */
   /* It hangs in the 2rem gap between this bar and the wordmark (the hero's row-gap), so on
      phones, where that gap is all there is, it must stay under 2rem tall. */
+  .switch:lang(zh-Hans) {
+    font-family: var(--sans-zh);
+  }
   .hint {
     position: absolute;
     top: calc(100% + 0.2rem);
@@ -651,6 +680,7 @@ const STAGE_SECONDS = 3;
     margin: 0;
     padding: 0.15rem 0.2rem 0.15rem 0.75rem;
     color: var(--ink-soft);
+    font-family: var(--sans-en);
     font-size: 0.8rem;
     line-height: 1.4;
     white-space: nowrap;
@@ -659,6 +689,12 @@ const STAGE_SECONDS = 3;
     border-radius: 999px;
     backdrop-filter: blur(6px);
     animation: hint-in 0.4s ease-out both;
+  }
+  .hint:lang(zh-Hans) {
+    font-family: var(--sans-zh);
+  }
+  .hint:lang(zh-Hant) {
+    font-family: var(--sans-zh-hant);
   }
   .hint[hidden] {
     display: none;
@@ -732,10 +768,16 @@ const STAGE_SECONDS = 3;
       animation: none;
     }
   }
+  /* Small type in Chinese keeps the sizes it had: only the Latin face changed, and Chinese
+     characters are drawn by the system faces at the same size as before. */
+  .switch:lang(zh-Hans) {
+    font-size: 0.95rem;
+  }
   /* Pause / play, for the scene and for the demo video. */
   .motion-toggle {
     font: inherit;
-    font-size: 0.85rem;
+    font-family: var(--sans-en);
+    font-size: 0.8125rem;
     color: var(--ink-soft);
     background: color-mix(in srgb, var(--ground) 60%, transparent);
     border: 1px solid color-mix(in srgb, var(--ink-soft) 45%, transparent);
@@ -743,6 +785,10 @@ const STAGE_SECONDS = 3;
     padding: 0.3rem 0.85rem;
     cursor: pointer;
     flex: none;
+  }
+  .motion-toggle:lang(zh-Hans) {
+    font-family: var(--sans-zh);
+    font-size: 0.85rem;
   }
   .motion-toggle:hover {
     color: var(--ink);
@@ -758,7 +804,12 @@ const STAGE_SECONDS = 3;
     position: relative;
   }
   .wordmark {
-    text-shadow: 0 2px 30px rgb(8 12 32 / 0.5);
+    font-family: var(--font-mark);
+    /* A close, soft dark halo as well as the wide one: where the brightest ribbon passes behind
+       the top of the letters (around 1024 wide), it keeps them at 4.5:1. */
+    text-shadow:
+      0 0 14px rgb(8 12 32 / 0.45),
+      0 2px 30px rgb(8 12 32 / 0.5);
     margin: 0 0 0 -0.045em;
     font-size: calc(21 * var(--u));
     font-style: italic;
@@ -766,43 +817,98 @@ const STAGE_SECONDS = 3;
     line-height: 0.92;
     letter-spacing: -0.02em;
   }
-  /* The ribbon's tail leaves the page just under the wordmark; the text starts below it.
-     Two lines in one size: a short one, then a long one. From tablets up the long one stays on
-     one line, so the size follows the screen's width (each language has its own measure);
-     on phones it may break, at its comma (Chinese) or between words (English). */
+  /* The ribbon's tail leaves the page just under the wordmark; the two lines start below it.
+     Both in DM Serif Display (upright, against the wordmark's Bodoni italic), in two ranks:
+     the first line is a signature (smaller, a shade softer, opened up), the second the statement,
+     one in and one out. The headline's own size is the second line's; from 1024 wide each line
+     holds one line, so the size follows the screen's width. Each line is two halves (`halves`
+     in the frontmatter) in a wrapping flex row: the gap between them is the pause, a fixed space
+     on one line, and the only place a line may break on a phone (the gap then disappears). */
   .headline {
-    margin: max(1.5rem, 4.5 * var(--u)) 0 0;
-    /* 28px from about 390 wide; the narrowest phones a little less, so the Chinese phrases
-       (which only break at their commas) still fit across the screen. */
-    font-size: clamp(1.35rem, 7.2vw, 1.75rem);
-    line-height: 1.35;
-    letter-spacing: 0.01em;
+    margin: max(2.25rem, 5.75 * var(--u)) 0 0;
+    font-size: clamp(1.35rem, 7.6vw, 2.25rem);
+    line-height: 1.16;
+    letter-spacing: -0.005em;
     /* On the smallest phones the lines climb into the lit sky: a soft shadow, like the wordmark's. */
     text-shadow: 0 1px 18px rgb(8 12 32 / 0.65);
   }
-  /* Chinese phones: the widest phrase (使用 AI 变成能赚钱的系统。, 12.8em) must fit across the
-     screen, since it may not break inside: 26.5px at 390 wide, 22px at 320. */
-  @media (max-width: 47.99rem) {
-    .headline:lang(zh-Hans) {
-      font-size: clamp(1.35rem, 6.8vw, 1.75rem);
+  /* Chinese in large type is Song Bold: beside DM Serif Display's dark strokes the regular Song
+     looked thin and the Latin letters like blots. Only a real bold: where the system has none,
+     it stays regular rather than being thickened by the browser. */
+  .headline:lang(zh-Hans) {
+    font-size: clamp(1.35rem, 8.4vw, 2.5rem);
+    line-height: 1.24;
+    letter-spacing: 0.02em;
+  }
+  .headline:lang(zh-Hans),
+  .value:lang(zh-Hans) {
+    font-weight: 700;
+    font-synthesis-weight: none;
+  }
+  .headline .sentence {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.65em; /* the pause: after "in." */
+  }
+  .headline:lang(zh-Hans) .sentence {
+    column-gap: 0.12em; /* the full-width comma carries about half an em of its own: ~0.65em in all */
+  }
+  /* The signature: 62% of the statement (35px at 1440, 21px on phones), a shade softer. */
+  .headline .sentence:first-child {
+    margin-bottom: 0.5em;
+    font-size: max(0.62em, min(1.3125rem, 5.6vw));
+    color: rgb(243 241 246 / 0.8);
+    letter-spacing: 0.035em;
+    column-gap: 0.3em;
+  }
+  .headline:lang(zh-Hans) .sentence:first-child {
+    letter-spacing: 0.04em;
+    column-gap: 0;
+  }
+  .half {
+    white-space: nowrap;
+  }
+  /* Phones and tablets: the painted caravan stands just under the wordmark. A wider gap (the
+     height the smaller first line saved) lifts the wordmark clear of it and leaves the camels
+     room between the wordmark and the lines, instead of a narrow slit (or, at 768, behind the
+     letters). */
+  @media (max-width: 63.99rem) {
+    .headline {
+      /* 72px on a 844-tall phone; less on short ones, where a taller gap would push the
+         wordmark up into the bright ribbons (320×640: 51px). */
+      margin-top: min(4.5rem, 8svh);
     }
   }
-  /* Tablets: at least 28px; the long line breaks between words (Chinese: after its comma). */
+  @media (min-width: 48rem) and (max-width: 63.99rem) {
+    .headline {
+      margin-top: 5.5rem;
+    }
+    .hero {
+      --pad-end: 4.75rem;
+    }
+  }
   @media (min-width: 48rem) {
     .headline {
-      font-size: clamp(1.75rem, 3.6vw, 2.6rem);
+      font-size: clamp(2rem, 5vw, 3rem);
     }
-    .headline:lang(en) {
-      font-size: 1.75rem;
+    .headline:lang(zh-Hans) {
+      font-size: clamp(2rem, 5.4vw, 3.25rem);
     }
   }
-  /* From 1024 wide: exactly two lines, the long one held on one line and sized to the screen. */
   @media (min-width: 64rem) {
-    .headline:lang(en) {
-      font-size: clamp(1.75rem, 2.75vw, 2.6rem);
+    /* English: the statement is about 21em with its pause; 3.7vw keeps it well inside the column
+       (88vw) with air on the right: 40px at 1024, 53px at 1440, 60px from 1620. Chinese (13.5em)
+       at 4vw, 58px at 1440: any taller and the wordmark above climbs into the brightest ribbons. */
+    .headline {
+      font-size: clamp(2.5rem, 3.7vw, 3.75rem);
     }
-    .headline .long {
-      white-space: nowrap;
+    .headline:lang(zh-Hans) {
+      font-size: clamp(2.5rem, 4vw, 4rem);
+      line-height: 1.18;
+    }
+    .headline .sentence {
+      flex-wrap: nowrap;
     }
   }
 
@@ -849,19 +955,36 @@ const STAGE_SECONDS = 3;
   .value {
     font-size: clamp(1.5rem, 4.2vw, 2.25rem);
     line-height: 1.2;
+    letter-spacing: 0.005em;
     white-space: nowrap;
     font-variant-numeric: lining-nums;
+  }
+  /* "→" drawn to the weight of the digits beside it (no font at hand draws one heavy enough);
+     read aloud as the arrow character inside. */
+  .arrow svg {
+    width: 0.95em;
+    height: 0.475em;
+    margin-inline: 0.02em;
+    vertical-align: 0.13em;
+    overflow: visible;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .tag {
     color: var(--ink-soft);
     font-family: var(--sans-en);
-    /* A note beside the number: easy to read, clearly smaller than it (15px on phones, 17px wide). */
-    font-size: clamp(0.9375rem, 0.85rem + 0.25vw, 1.0625rem);
+    /* A note beside the number: easy to read, clearly smaller than it (14px on phones, 16px wide;
+       Hanken Grotesk stands taller than its size, so this reads like 15–17px of the old face). */
+    font-size: clamp(0.875rem, 0.8rem + 0.22vw, 1rem);
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
   .tag:lang(zh-Hans) {
     font-family: var(--sans-zh);
+    font-size: clamp(0.9375rem, 0.85rem + 0.25vw, 1.0625rem);
   }
   /* A small arrow after the tag: the number leads down the page. Quiet until the pointer or the
      keyboard is on it, then it lights with the line above. */
@@ -897,7 +1020,7 @@ const STAGE_SECONDS = 3;
      level with the numbers; on narrower ones, where the numbers run across, under them on the right. */
   .intro > .motion-toggle {
     padding: 0.3rem 0.8rem;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     line-height: 1.4;
     color: var(--ink-soft);
     background: rgb(8 12 32 / 0.35);
@@ -907,11 +1030,14 @@ const STAGE_SECONDS = 3;
     display: block;
     margin: 1.25rem 0 0 auto;
   }
+  .intro > .motion-toggle:lang(zh-Hans) {
+    font-size: 0.8rem;
+  }
   @media (min-width: 64rem) {
     .intro > .motion-toggle:not([hidden]) {
       position: absolute;
       right: var(--gutter);
-      bottom: calc(clamp(2.5rem, 7svh, 5rem) + 0.35rem);
+      bottom: calc(var(--pad-end) + 0.35rem);
       margin: 0;
     }
   }
@@ -950,10 +1076,10 @@ const STAGE_SECONDS = 3;
     background: linear-gradient(#070c20, var(--ground) 40rem);
     color: var(--ink-soft);
     font-family: var(--sans-en);
-    /* Body text. Jost is small on its feet (a low x-height), so it is set a step larger than a
-       usual sans to read like one at 18px: 19px on phones, 20px wide. Chinese 17px → 18px. */
-    font-size: clamp(1.1875rem, 1.1rem + 0.2vw, 1.25rem);
-    line-height: 1.7;
+    /* Body text in Hanken Grotesk: 18px on phones, 18.75px wide (its x-height is 0.49 em, so this
+       reads as large as the 19–20px of the low-set face it replaced). Chinese 17px → 18px. */
+    font-size: clamp(1.125rem, 1.07rem + 0.15vw, 1.171875rem);
+    line-height: 1.68;
   }
   .night:lang(zh-Hans) {
     font-family: var(--sans-zh);
@@ -1040,10 +1166,10 @@ const STAGE_SECONDS = 3;
     max-width: 17em;
     color: var(--ink);
     font-family: var(--font-en);
-    font-size: clamp(2.05rem, 1.2rem + 2.9vw, 3.75rem);
+    font-size: clamp(1.95rem, 1.15rem + 2.6vw, 3.4rem);
     font-weight: 400;
-    line-height: 1.12;
-    letter-spacing: -0.015em;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
     text-wrap: balance;
   }
   /* Reached from the three numbers at the top: land with room above the heading. */
@@ -1057,6 +1183,9 @@ const STAGE_SECONDS = 3;
   .display:lang(zh-Hans) {
     max-width: 16em;
     font-family: var(--font-zh);
+    /* Song Bold beside the dark Latin face (see .headline:lang(zh-Hans)). */
+    font-weight: 700;
+    font-synthesis-weight: none;
     font-size: clamp(1.5rem, 1rem + 2.4vw, 3rem);
     line-height: 1.42;
     letter-spacing: 0.02em;
@@ -1090,14 +1219,17 @@ const STAGE_SECONDS = 3;
   .limits-list h3 {
     margin: 0;
     color: var(--ink);
-    font-family: var(--font-en);
-    font-size: clamp(1.45rem, 1.2rem + 0.6vw, 1.75rem);
-    font-weight: 400;
-    line-height: 1.3;
+    /* The middle rank: Hanken Grotesk 600, 18–21px, between the display headings and the body. */
+    font-family: var(--sans-en);
+    font-size: clamp(1.15rem, 1.05rem + 0.3vw, 1.3125rem);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
   }
   .signs-list h3:lang(zh-Hans),
   .limits-list h3:lang(zh-Hans) {
-    font-family: var(--font-zh);
+    font-family: var(--head-zh);
+    font-weight: 400;
     font-size: clamp(1.3rem, 1.1rem + 0.5vw, 1.55rem);
     line-height: 1.5;
     letter-spacing: 0.03em;
@@ -1125,7 +1257,7 @@ const STAGE_SECONDS = 3;
   .step-num {
     color: var(--ink-faint);
     font-family: var(--font-en);
-    font-size: clamp(1.9rem, 1.4rem + 1.4vw, 2.75rem);
+    font-size: clamp(1.75rem, 1.3rem + 1.2vw, 2.5rem);
     font-style: italic;
     line-height: 1;
     font-variant-numeric: lining-nums;
@@ -1141,7 +1273,7 @@ const STAGE_SECONDS = 3;
     margin: 0;
     color: var(--ink);
     font-family: var(--font-en);
-    font-size: clamp(1.45rem, 1.1rem + 1vw, 2rem);
+    font-size: clamp(1.3rem, 1.1rem + 0.6vw, 1.625rem);
     font-weight: 400;
     line-height: 1.2;
   }
@@ -1179,7 +1311,7 @@ const STAGE_SECONDS = 3;
   .demo-lead {
     max-width: 32em;
     margin: 0;
-    font-size: 1.3125rem;
+    font-size: 1.25rem;
     line-height: 1.65;
   }
   .demo-lead:lang(zh-Hans) {
@@ -1233,8 +1365,11 @@ const STAGE_SECONDS = 3;
     margin-top: clamp(2.5rem, 1.5rem + 2vw, 3.5rem);
     padding-bottom: 0.9rem;
     color: var(--ink-faint);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     line-height: 1.5;
+  }
+  .roles-head:lang(zh-Hans) {
+    font-size: 0.9375rem;
   }
   .roles {
     margin: 0;
@@ -1275,18 +1410,30 @@ const STAGE_SECONDS = 3;
   .linked li.on::after {
     opacity: 1;
   }
+  /* The number in DM Serif Display italic; the name in the middle rank, Hanken Grotesk 600. */
   .stage {
     margin: 0;
     color: var(--ink);
     font-family: var(--font-en);
-    font-size: clamp(1.45rem, 1.2rem + 0.5vw, 1.7rem);
+    font-size: clamp(1.3rem, 1.12rem + 0.45vw, 1.55rem);
     font-weight: 400;
-    line-height: 1.25;
+    line-height: 1.22;
+  }
+  .stage-name {
+    font-family: var(--sans-en);
+    font-size: clamp(1.15rem, 1.05rem + 0.3vw, 1.3125rem);
+    font-weight: 600;
+    letter-spacing: -0.005em;
   }
   .stage:lang(zh-Hans) {
     font-family: var(--font-zh);
     font-size: clamp(1.3rem, 1.1rem + 0.45vw, 1.5rem);
     letter-spacing: 0.04em;
+  }
+  .stage-name:lang(zh-Hans) {
+    font-family: var(--head-zh);
+    font-size: inherit;
+    font-weight: 400;
   }
   /* The number carries the silk's dyes under its colour: they show once the colour goes
      transparent (the current row, or the row under the pointer), so the change can fade. */
@@ -1304,10 +1451,10 @@ const STAGE_SECONDS = 3;
   .roles dl {
     margin: 0;
   }
-  /* The cells: a step under the body text (18px, Chinese 17px), never under 16px. */
+  /* The cells: a step under the body text (17px, Chinese 17px), never under 16px. */
   .roles dd {
     margin: 0;
-    font-size: 1.125rem;
+    font-size: 1.0625rem;
     line-height: 1.6;
   }
   .roles dd:lang(zh-Hans) {
@@ -1316,8 +1463,11 @@ const STAGE_SECONDS = 3;
   }
   .roles dt {
     color: var(--ink-faint);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     line-height: 1.5;
+  }
+  .roles dt:lang(zh-Hans) {
+    font-size: 0.9375rem;
   }
   .roles .dt-short {
     display: none;
@@ -1397,8 +1547,11 @@ const STAGE_SECONDS = 3;
   .notes .aside {
     margin-top: 0.6rem;
     color: var(--ink-faint);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     line-height: 1.6;
+  }
+  .notes .aside:lang(zh-Hans) {
+    font-size: 0.9375rem;
   }
   .demo .motion-toggle {
     min-height: 2.5rem;
@@ -1406,6 +1559,9 @@ const STAGE_SECONDS = 3;
     color: var(--ink-soft);
     background: transparent;
     border-color: rgb(243 240 234 / 0.28);
+    font-size: 0.875rem;
+  }
+  .demo .motion-toggle:lang(zh-Hans) {
     font-size: 0.9rem;
   }
 
@@ -1486,6 +1642,9 @@ const STAGE_SECONDS = 3;
     display: block;
     margin-top: 0.35rem;
     color: var(--ink-faint);
+    font-size: 0.875rem;
+  }
+  .post-meta:lang(zh-Hans) {
     font-size: 0.9rem;
   }
   .posts a:hover .post-title {
@@ -1531,13 +1690,23 @@ const STAGE_SECONDS = 3;
     margin: 0 auto;
     color: var(--ink);
     font-family: var(--font-en);
-    font-size: clamp(1.6rem, 0.95rem + 2.3vw, 2.85rem);
-    line-height: 1.32;
-    letter-spacing: -0.01em;
+    font-size: clamp(1.5rem, 0.92rem + 2.1vw, 2.65rem);
+    line-height: 1.3;
+    letter-spacing: -0.005em;
     text-align: center;
     text-shadow:
       0 0 18px rgb(7 11 26 / 0.9),
       0 2px 40px rgb(7 11 26 / 0.8);
+  }
+  /* English: the motto in DM Serif Display italic, a size under the four words below, softer
+     ink, open leading, so Seres / sericus / serico stay the heaviest thing in this scene. */
+  .motto:lang(en) {
+    max-width: min(24em, 100% - 2 * clamp(1.5rem, 8vw, 6rem));
+    color: rgb(243 240 234 / 0.88);
+    font-size: clamp(1.375rem, 0.95rem + 1.5vw, 2.25rem);
+    font-style: italic;
+    line-height: 1.45;
+    letter-spacing: 0;
   }
   .motto:lang(zh-Hans) {
     max-width: min(21em, 100% - 2 * clamp(1.5rem, 8vw, 6rem));
@@ -1640,7 +1809,7 @@ const STAGE_SECONDS = 3;
     align-self: baseline;
     justify-self: start;
     color: var(--ink);
-    font-family: var(--font-en);
+    font-family: var(--font-mark);
     font-size: var(--w);
     font-style: italic;
     line-height: 1;
@@ -1662,14 +1831,18 @@ const STAGE_SECONDS = 3;
   .from {
     margin-top: 1.1rem;
     color: var(--ink-soft);
-    font-size: 0.95rem;
+    font-size: 0.875rem;
     line-height: 1.5;
+  }
+  .from:lang(zh-Hans),
+  .means:lang(zh-Hans) {
+    font-size: 0.95rem;
   }
   .means {
     max-width: 13em;
     margin-top: 0.3rem;
     color: #a4a9c2; /* a step lighter than --ink-faint: it can sit over the dunes */
-    font-size: 0.95rem;
+    font-size: 0.875rem;
     line-height: 1.6;
   }
 
@@ -1720,7 +1893,7 @@ const STAGE_SECONDS = 3;
     margin: 0;
     color: var(--ink-soft);
     font: inherit;
-    font-size: 1rem;
+    font-size: 0.9375rem;
   }
   .find a {
     display: inline-block;
@@ -1740,8 +1913,11 @@ const STAGE_SECONDS = 3;
     padding-top: 1.1rem;
     border-top: 1px solid var(--hairline);
     color: var(--ink-soft);
-    font-size: 0.875rem;
+    font-size: 0.84375rem;
     line-height: 1.6;
+  }
+  .colophon:lang(zh-Hans) {
+    font-size: 0.875rem;
   }
   .colophon p {
     margin: 0;
@@ -1749,7 +1925,7 @@ const STAGE_SECONDS = 3;
   .sign {
     margin-right: 0.35rem;
     color: var(--ink);
-    font-family: var(--font-en);
+    font-family: var(--font-mark);
     font-size: 1.2rem;
     font-style: italic;
   }

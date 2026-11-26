@@ -5,7 +5,8 @@
 // Everything is in the painting's own pixels (public/hero/hero_{wide,tall}.webp) and is mapped onto
 // the canvas the way CSS `object-fit: cover` places the picture (sky.ts passes the mapping in). It
 // draws on the sky's canvas, inside the sky's own animation frame:
-//   drawGround(ctx) — the patches that hide the painted caravan, the camels, the dune in front;
+//   drawGround(ctx) — the patches that hide the painted caravan, the light each caravan leaves on
+//                     the road it has walked, the camels, the dune in front;
 //   drawLights(ctx) — additive, with the sky's other lights: lanterns, the road's afterglow, dust, silk.
 // The camels' bodies are cut from the painting itself; only their legs are drawn, stepping in a
 // camel's pace. Until its pictures have loaded, or where the road would run under the text, it stays
@@ -41,6 +42,22 @@ const HERALD = 5; // seconds of warm light behind the ridge before a caravan com
 const STEP = 0.9; // gait cycles per full-size body length walked
 const WARM = '255, 172, 92';
 const GOLD = '255, 206, 140';
+
+// The light each caravan leaves on the road: where they tread, it lights up. The sand under the
+// caravan is brightest; behind it a band of light follows the road they have walked (round the
+// hairpins too: both arms have been walked), dimming slowly back to the night over tens of seconds.
+// It lights the painting itself: what it adds is the sand under it, tinted warm, so the sand's own
+// ripples and ridges show brighter — lit sand, not a yellow haze laid over it. Drawn before the
+// dune in front, so that dune hides it where it hides the road.
+const BEAM = {
+  // r: the band's half-width at full size (image px); gain: how much the lit sand brightens;
+  // fade: seconds after the last camel has passed until a stretch of road is dark again
+  plain: { r: 34, gain: 2.8, fade: 13 },
+  grand: { r: 50, gain: 3.0, fade: 24 },
+};
+const FLAT = 0.4; // the band lies on the ground: this much as tall as wide (flat: it must not spill onto the next arm of a hairpin)
+const TINT = '255, 152, 72'; // deep amber gold, as the lantern-lit ridges in the painting
+const CAP = 200; // no lit pixel goes above this brightness (luma), and no channel clips: lit gold, never white
 
 // Catmull–Rom spline through [x, y, visibility] points, sampled evenly by length.
 function trace(pts: Pt[], n: number) {
@@ -133,7 +150,76 @@ export function createCaravan() {
   const glow = soft(WARM, [[0, 1], [0.15, 0.7], [0.4, 0.25], [0.7, 0.06], [1, 0]]);
   const lamp = soft('255, 118, 40', [[0, 0.9], [0.3, 0.55], [0.65, 0.15], [1, 0]]); // the painted lanterns are orange, not white
   const ember = soft(GOLD, [[0, 1], [0.35, 0.45], [1, 0]]);
+  const spark = soft('255, 150, 70', [[0, 1], [0.35, 0.4], [1, 0]]); // the sparks before a caravan: warm orange, not pale gold
   const haze = soft('255, 140, 88', [[0, 0.75], [0.35, 0.4], [0.7, 0.1], [1, 0]]); // deeper than the lanterns: stacked, it must not turn yellow
+  // the light's footprint (a mask: only its alpha counts), close to a Gaussian, with no edge
+  const pool = soft('255, 255, 255', [[0, 1], [0.25, 0.72], [0.5, 0.3], [0.75, 0.07], [1, 0]]);
+
+  // The painting's sand around the road (with the patches on it), tinted warm: what the light adds.
+  // Made once, in the picture's own pixels, when the pictures are in.
+  let art: HTMLImageElement | null = null;
+  let lit: { c: HTMLCanvasElement; x: number; y: number } | null = null;
+  function litSand() {
+    if (lit || !art || !art.complete || !art.naturalWidth) return lit;
+    const pts = route.wide.pts;
+    const x0 = Math.max(0, Math.min(...pts.map((p) => p[0])) - 120), x1 = Math.min(art.naturalWidth, Math.max(...pts.map((p) => p[0])) + 120);
+    const y0 = Math.max(0, Math.min(...pts.map((p) => p[1])) - 50), y1 = Math.min(art.naturalHeight, Math.max(...pts.map((p) => p[1])) + 50);
+    const c = document.createElement('canvas');
+    c.width = Math.round(x1 - x0);
+    c.height = Math.round(y1 - y0);
+    const g = c.getContext('2d')!;
+    g.drawImage(art, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+    patches.wide.forEach((P, i) => g.drawImage(img(patchSrc.wide[i]), P.x - x0, P.y - y0, P.w, P.h));
+    // what light adds to each pixel is in proportion to the pixel (its texture stays), tinted warm,
+    // and a little more in proportion where the sand is dark: at night the hollows are lit too, the
+    // already bright road and ridges are not burnt out
+    const [t0, t1, t2] = TINT.split(',').map((v) => +v / 255);
+    const gain = BEAM.grand.gain;
+    try {
+      const d = g.getImageData(0, 0, c.width, c.height);
+      const px = d.data;
+      // (about 230 000 pixels: worked out channel by channel, with nothing allocated in the loop)
+      for (let i = 0; i < px.length; i += 4) {
+        const r = px[i], gr = px[i + 1], b = px[i + 2];
+        const l = Math.max(8, 0.3 * r + 0.55 * gr + 0.15 * b);
+        // dark sand is lifted a little more in proportion than the bright road and ridges
+        const m = Math.min(1.6, (110 / l) ** 0.45);
+        // the light is warm whatever it falls on: what it adds follows the sand's brightness more than
+        // its colour (the night's violet sand, lifted in its own colour, turns lavender and misty)
+        const a0 = (0.4 * r + 0.6 * l) * t0 * m * gain;
+        const a1 = (0.4 * gr + 0.6 * l) * t1 * m * gain;
+        const a2 = (0.4 * b + 0.6 * l) * t2 * m * gain;
+        // at full light (the mask's 1) the pixel may rise only to CAP in brightness, and no channel past
+        // 250: the whole added colour is scaled down together, so it stays amber (a channel clipping
+        // first would shift it toward white)
+        let fit = 1;
+        if (a0 > 0) fit = Math.min(fit, Math.max(0, 250 - r) / a0);
+        if (a1 > 0) fit = Math.min(fit, Math.max(0, 250 - gr) / a1);
+        if (a2 > 0) fit = Math.min(fit, Math.max(0, 250 - b) / a2);
+        const la = 0.3 * a0 + 0.55 * a1 + 0.15 * a2;
+        if (la > 0) fit = Math.min(fit, Math.max(0, CAP - (0.3 * r + 0.55 * gr + 0.15 * b)) / la);
+        px[i] = a0 * fit;
+        px[i + 1] = a1 * fit;
+        px[i + 2] = a2 * fit;
+      }
+      g.putImageData(d, 0, 0);
+    } catch {
+      g.globalCompositeOperation = 'multiply';
+      g.fillStyle = `rgb(${TINT})`;
+      g.fillRect(0, 0, c.width, c.height);
+    }
+    // a fresh copy that was never read back: the browser can keep it on the GPU (the one read from it
+    // may be kept in memory, and sent over again every frame it is drawn)
+    const out = document.createElement('canvas');
+    out.width = c.width;
+    out.height = c.height;
+    out.getContext('2d')!.drawImage(c, 0, 0);
+    lit = { c: out, x: x0, y: y0 };
+    return lit;
+  }
+  // where the pool's mask is drawn each frame (reused; grows when it must)
+  const scratch = document.createElement('canvas');
+  const sg = scratch.getContext('2d')!;
 
   let kind: Kind = 'wide';
   let R = route.wide;
@@ -288,8 +374,115 @@ export function createCaravan() {
     const ahead = smooth(early - HERALD, early, c.t); // the light comes first, the camels after
     const comeT = road.T[gate > 0 ? Math.round(gate + 30) : road.rise + 30];
     const after = 1 - smooth(comeT, comeT + 9, c.t);
-    const a = ahead * after * (c.grand ? 1.8 : 0.7); // above 1: stamped twice (it sits under the page's dark veil)
+    const a = ahead * after * (c.grand ? 0.9 : 0.35); // a warm glow behind the ridge, not a white cloud
     return { a, ix: heraldAt };
+  }
+
+  // The light of each caravan, as soft footprints laid along the road (screen px): from under the
+  // leader back over the caravan, and on along the road behind it, dimming. `a` is each one's
+  // strength (0–1, already scaled by the caravan's gain / the largest gain).
+  type Print = { x: number; y: number; rx: number; ry: number; a: number };
+  function lightOf(c: Team, prints: Print[]) {
+    const team = roster(c.n, c.grand);
+    const B = c.grand ? BEAM.grand : BEAM.plain;
+    const norm = B.gain / BEAM.grand.gain;
+    const head = Math.min(c.t, road.Ttot); // the leader
+    const tail = c.t - team[team.length - 1].off; // the last camel
+    // the painted caravan lights up as it sets off, and lights none of the road behind where it stood
+    const from = c.n === 0 ? road.lead0 - team[team.length - 1].off : 0;
+    const start = c.n === 0 ? smooth(FADE_IN, FADE_IN + SET_OFF + 1, clock) : 1;
+    // at the city the whole band fades with the caravan into the city's lights
+    const end = 1 - smooth(road.Ttot * 0.93, road.Ttot + 2, tail);
+    const whole = start * end;
+    if (whole < 0.01 || head <= 0) return;
+    const dsImg = road.total / (road.n - 1);
+    // how bright the road is, `behind` seconds after the last camel passed: brightest under them and
+    // two or three lengths behind, then sinking smoothly into dark gold and out over B.fade (no step)
+    const left = (behind: number) => (behind <= 0 ? 1 : (1 - smooth(B.fade * 0.2, B.fade, behind)) * (0.62 + 0.38 * Math.exp(-behind / 2.5)));
+    let f = at(head);
+    while (f >= 0) {
+      const t = lerp(road.T, f);
+      const behind = tail - t;
+      if (behind > B.fade || t < from - 0.5) break;
+      const trail = left(behind);
+      const s = lerp(road.scale, f);
+      // a little wider where the caravan is than along the band behind it
+      const rx = B.r * s * k * (0.6 + 0.4 * trail); // and narrower as it dims
+      const p = lerp(road.pts, f);
+      const step = Math.max(0.5, (0.45 * rx) / (dsImg * k)); // footprints about 0.45 of their width apart
+      const vis = smooth(0.3, 0.95, p[2]);
+      const seen = gate < 0 || c.n === 0 ? 1 : smooth(gate, gate + 40, f);
+      const edge = 1 - smooth(xMax - 150, xMax - 10, p[0]); // a long fade: the band must not end in a cap at the edge
+      const far = 0.55 + 0.45 * smooth(0.15, 0.75, s); // farther: narrower (rx) and fainter
+      const fromHere = c.n === 0 ? smooth(from - 0.5, from + 0.5, t) : 1;
+      // the leader's own footprint fades in over its first steps, so the band starts soft under it
+      const lead = smooth(0, 0.8, head - t + 0.2);
+      const I = trail * lead * vis * seen * edge * far * fromHere * whole;
+      if (I > 0.004) {
+        const [x, y] = map(p);
+        const ry = rx * FLAT;
+        // keep off the words: footprints near them fade out before they get there
+        const clear = smooth(4, 36, toWords(x - rx * 0.8, y - ry * 0.8, x + rx * 0.8, y + ry * 0.8));
+        // a footprint's cross-section integrates to about 0.62·rx; spaced `step` apart they sum to I
+        const a = (I * clear * norm * step * dsImg * k) / (0.62 * rx);
+        if (a > 0.002) prints.push({ x, y: y - ry * 0.1, rx, ry, a });
+      }
+      f -= step;
+    }
+  }
+
+  const prints: Print[] = [];
+  // The lit sand is first needed when a grand caravan has lit the road, long after the page opened:
+  // it is made when the browser is idle (at the latest 2 s after asking), not in the busy first
+  // frames; if the light comes first after all, it is made right then, so it is never late.
+  let litQueued = false;
+  const litWhenIdle = () => {
+    if (lit || litQueued || !art) return;
+    litQueued = true;
+    const make = () => ((litQueued = false), litSand());
+    if ('requestIdleCallback' in window) requestIdleCallback(make, { timeout: 2000 });
+    else setTimeout(make, 200);
+  };
+  function drawLight(ctx: CanvasRenderingContext2D) {
+    litWhenIdle();
+    prints.length = 0;
+    for (const c of teams) lightOf(c, prints);
+    if (!prints.length) return;
+    const sand = litSand();
+    if (!sand) return;
+    let X0 = 1e9, Y0 = 1e9, X1 = -1e9, Y1 = -1e9;
+    for (const p of prints) (X0 = Math.min(X0, p.x - p.rx)), (Y0 = Math.min(Y0, p.y - p.ry)), (X1 = Math.max(X1, p.x + p.rx)), (Y1 = Math.max(Y1, p.y + p.ry));
+    X0 = Math.floor(X0);
+    Y0 = Math.floor(Y0);
+    const dpr = ctx.getTransform().a || 1;
+    const w = Math.ceil((X1 - X0 + 1) * dpr), h = Math.ceil((Y1 - Y0 + 1) * dpr);
+    if (scratch.width < w || scratch.height < h) {
+      scratch.width = Math.max(scratch.width, w);
+      scratch.height = Math.max(scratch.height, h);
+    }
+    sg.setTransform(1, 0, 0, 1, 0, 0);
+    sg.globalCompositeOperation = 'source-over';
+    sg.globalAlpha = 1;
+    sg.clearRect(0, 0, w, h);
+    sg.setTransform(dpr, 0, 0, dpr, -X0 * dpr, -Y0 * dpr);
+    // the footprints add up into one smooth mask; where two bands cross it tops out at full, so
+    // crossing bands are never brighter than the brightest one
+    sg.globalCompositeOperation = 'lighter';
+    for (const p of prints) {
+      sg.globalAlpha = Math.min(1, p.a);
+      sg.drawImage(pool, p.x - p.rx, p.y - p.ry, p.rx * 2, p.ry * 2);
+    }
+    // ... and keep the warm-tinted sand under it
+    sg.globalAlpha = 1;
+    sg.globalCompositeOperation = 'source-in';
+    const [sx, sy] = map([sand.x, sand.y]);
+    sg.drawImage(sand.c, sx, sy, sand.c.width * k, sand.c.height * k);
+    // added onto the painting: the sand under it is lit
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(scratch, 0, 0, w, h, X0, Y0, w / dpr, h / dpr);
+    ctx.restore();
   }
 
   let scene: Walker[] = [];
@@ -533,9 +726,12 @@ export function createCaravan() {
     /**
      * Call whenever the canvas is laid out, and whenever the words move. `avoid`: rects [x0, y0, x1, y1]
      * of the words, in canvas px. `rightEdge`: the right edge of what is seen of the canvas at the
-     * drift's widest (canvas px). Only the layout changes: the caravans walk on where they are.
+     * drift's widest (canvas px). `painting`: the <img> of the picture (the light is made from its sand).
+     * Only the layout changes: the caravans walk on where they are.
      */
-    setup(which: Kind, mapFn: (p: Pt) => Pt, scale: number, avoid: Rect[] = [], rightEdge: number | null = null) {
+    setup(which: Kind, mapFn: (p: Pt) => Pt, scale: number, avoid: Rect[] = [], rightEdge: number | null = null, painting: HTMLImageElement | null = null) {
+      // the painting itself (its sand is what the caravans' light brightens)
+      if (painting && painting !== art) (art = painting), (lit = null);
       if (which !== kind || !road) {
         kind = which;
         R = route[kind];
@@ -594,11 +790,11 @@ export function createCaravan() {
       for (const c of teams) {
         if (!c.grand) continue;
         const { a, ix } = herald(c);
-        if (a < 0.05 || rand() > dt * 16 * Math.min(1, a)) continue;
+        if (a < 0.05 || rand() > dt * 8 * Math.min(1, a)) continue;
         const j = clamp(Math.round(ix + (rand() - 0.3) * 120), Math.max(road.rise, gate), road.n - 1);
         const [px, py] = map(road.pts[j]);
         const q = road.scale[j] * k;
-        motes.push({ x: px + (rand() - 0.5) * 6 * q, y: py - rand() * 3 * q, vx: (rand() - 0.3) * 3 * q, vy: -(6 + rand() * 8) * q, life: 0, max: 2.4 + rand() * 1.8, r: (0.8 + rand() * 0.7) * Math.max(0.9, q), a: Math.min(1, a), rise: true });
+        motes.push({ x: px + (rand() - 0.5) * 6 * q, y: py - rand() * 3 * q, vx: (rand() - 0.3) * 3 * q, vy: -(6 + rand() * 8) * q, life: 0, max: 2.4 + rand() * 1.8, r: 0.7 * (0.8 + rand() * 0.7) * Math.max(0.9, q), a: Math.min(1, a), rise: true });
       }
       for (const m of scene) {
         if (!m.grand || m.body < 0.3) continue;
@@ -685,6 +881,8 @@ export function createCaravan() {
       }
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
+      // the light that goes with each caravan, on the sand (under the camels, behind the dune in front)
+      drawLight(ctx);
       for (const m of scene) {
         if (m.body <= 0.01) continue;
         ctx.globalAlpha = m.body * (0.75 + 0.25 * smooth(0.3, 0.9, m.s));
@@ -751,7 +949,7 @@ export function createCaravan() {
         if (a <= 0.01) continue;
         ctx.globalAlpha = clamp(a, 0, 1);
         const r = p.r * 2.2;
-        ctx.drawImage(ember, p.x - r, p.y - r, r * 2, r * 2);
+        ctx.drawImage(p.rise ? spark : ember, p.x - r, p.y - r, r * 2, r * 2);
       }
       // silk: one long strand from the leader's load, streaming back over the whole caravan (a second,
       // shorter one was tried and dropped: one strand reads as a gesture, two as shapes)

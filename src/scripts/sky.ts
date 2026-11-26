@@ -125,7 +125,7 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement, extra
     const ox = (W - iw * scale) / 2, oy = (H - ih * scale) / 2;
     map = ([x, y]) => [ox + x * iw * scale, oy + y * ih * scale];
     // the caravan's points are in the picture's pixels, not 0–1
-    placeCaravan = () => caravan?.setup(layout === TALL ? 'tall' : 'wide', ([x, y]) => [ox + x * scale, oy + y * scale], scale, avoid(), edge ? edge(W) : null);
+    placeCaravan = () => caravan?.setup(layout === TALL ? 'tall' : 'wide', ([x, y]) => [ox + x * scale, oy + y * scale], scale, avoid(), edge ? edge(W) : null, img);
     placeCaravan();
 
     paths = layout.flows.map((f) => trace(f.pts).map(map));

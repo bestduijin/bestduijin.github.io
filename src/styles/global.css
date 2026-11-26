@@ -18,20 +18,27 @@
   --silk-teal: #74d4c9;
   --gutter: clamp(1.25rem, 6vw, 6.5rem);
 
-  /* Chinese pages: Bodoni Moda supplies letters and digits only, the Song face
-     supplies Chinese and its full-width punctuation. */
-  --font-zh: 'Bodoni Moda', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC',
+  /* Large type: DM Serif Display. On Chinese pages it supplies letters and digits only
+     (Serico, AI, 15), the Song face supplies Chinese and its full-width punctuation. */
+  --font-zh: 'DM Serif Display', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC',
     'Source Han Serif CN', 'Noto Serif SC', STSong, SimSun, serif;
-  --font-en: 'Bodoni Moda', 'Bodoni Moda Punct', 'Bodoni 72', Didot, 'Bodoni MT', Georgia,
+  --font-en: 'DM Serif Display', 'DM Serif Display Punct', Georgia, 'Times New Roman',
     'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Noto Serif SC', STSong, SimSun, serif;
   /* Traditional Chinese, used only by the language note for Traditional readers. */
-  --font-zh-hant: 'Bodoni Moda', 'Songti TC', 'Noto Serif CJK TC', 'Source Han Serif TC',
+  --font-zh-hant: 'DM Serif Display', 'Songti TC', 'Noto Serif CJK TC', 'Source Han Serif TC',
     'Noto Serif TC', PMingLiU, MingLiU, serif;
-  /* Body text and small type below the opening scene. Jost, like Bodoni Moda, is split into
-     letters-and-digits and punctuation (Base.astro), so Chinese keeps its own punctuation. */
-  --sans-en: 'Jost', 'Jost Punct', 'Avenir Next', Futura, 'Helvetica Neue', Arial, sans-serif;
-  --sans-zh: 'Jost', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Source Han Sans SC',
+  /* Chinese small headings: the Song face, Latin letters (if any) in the middle-rank sans. */
+  --head-zh: 'Hanken Grotesk', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC',
+    'Source Han Serif CN', 'Noto Serif SC', STSong, SimSun, serif;
+  /* The name Serico (and the Latin words it comes from) only: Bodoni Moda italic. */
+  --font-mark: 'Bodoni Moda', 'Bodoni 72', Didot, 'Bodoni MT', Georgia, serif;
+  /* Body text and small type: Hanken Grotesk, split like DM Serif Display into letters-and-digits
+     and punctuation (Base.astro), so Chinese keeps its own punctuation. */
+  --sans-en: 'Hanken Grotesk', 'Hanken Grotesk Punct', 'Helvetica Neue', Arial, sans-serif;
+  --sans-zh: 'Hanken Grotesk', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Source Han Sans SC',
     'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --sans-zh-hant: 'Hanken Grotesk', 'PingFang TC', 'Hiragino Sans CNS', 'Noto Sans CJK TC', 'Noto Sans TC',
+    'Microsoft JhengHei', sans-serif;
 }
 
 *,
@@ -64,7 +71,7 @@ body {
   line-height: 2;
 }
 
-/* Bodoni runs small beside a Song face and needs less leading on its own.
+/* The Latin display face needs less leading on its own than beside a Song face.
    Set where a language starts (the page, or an element with its own `lang`) and inherited
    from there, so a section can choose another family for everything inside it. */
 [lang]:lang(en) {
