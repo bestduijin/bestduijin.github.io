@@ -5,6 +5,11 @@
 // Every position is written in the picture's own coordinates (0–1 across and down),
 // read off the two paintings, and mapped onto the screen the same way CSS
 // `object-fit: cover` places the picture. Change the paintings → re-trace these.
+//
+// The caravan (caravan.ts) walks on the same canvas, in the same animation frame: once it is under
+// way, it carries its own lanterns, so the painted ones here stop flickering.
+
+import type { Caravan } from './caravan';
 
 type Pt = [number, number];
 type Flow = { pts: Pt[]; color: string; count: number; speed: number; size: number };
@@ -79,7 +84,17 @@ function rng(seed: number) {
   return () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 }
 
-export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement) {
+type Rect = [number, number, number, number];
+type Extras = {
+  caravan?: Caravan;
+  // the words on the opening scene, in canvas px (see Page.astro)
+  avoid?: () => Rect[];
+  // the right edge of what is seen of the canvas at the drift's widest, in canvas px
+  edge?: (width: number) => number;
+};
+
+export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement, extras: Extras = {}) {
+  const { caravan, avoid = () => [], edge } = extras;
   const ctx = canvas.getContext('2d')!;
   let W = 0, H = 0, dpr = 1;
   let map = (p: Pt): Pt => p;
@@ -93,6 +108,7 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement) {
   let raf = 0;
   let last = 0;
   let clock = 0;
+  let placeCaravan: () => void = () => {};
 
   function setup() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -108,13 +124,19 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement) {
     scale = Math.max(W / iw, H / ih);
     const ox = (W - iw * scale) / 2, oy = (H - ih * scale) / 2;
     map = ([x, y]) => [ox + x * iw * scale, oy + y * ih * scale];
+    // the caravan's points are in the picture's pixels, not 0–1
+    placeCaravan = () => caravan?.setup(layout === TALL ? 'tall' : 'wide', ([x, y]) => [ox + x * scale, oy + y * scale], scale, avoid(), edge ? edge(W) : null);
+    placeCaravan();
 
     paths = layout.flows.map((f) => trace(f.pts).map(map));
     const r = rng(7);
+    // on a new size of the same picture, the sparks carry on from where they are
+    const was = sparks;
     sparks = [];
     layout.flows.forEach((f, flow) => {
       for (let i = 0; i < f.count; i++) sparks.push({ flow, s: r(), v: f.speed * (0.6 + r() * 0.8), tw: r() * 6.28 });
     });
+    if (was.length === sparks.length) sparks.forEach((sp, i) => (sp.s = was[i].s));
     stars = Array.from({ length: Math.round((W * H) / 9000) }, () => ({
       p: map([r(), r() * layout.starsBelow]),
       r: 0.5 + r() * 1.1,
@@ -135,8 +157,22 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement) {
   function frame(now: number) {
     const dt = Math.min(0.05, (now - (last || now)) / 1000);
     last = now;
+    paint(dt);
+    raf = requestAnimationFrame(frame);
+  }
+
+  // Whether anything has been painted yet (before that, the canvas is meant to be empty: the
+  // painting as it is).
+  let painted = false;
+  function paint(dt: number) {
+    painted = true;
     clock += dt;
     ctx.clearRect(0, 0, W, H);
+    // the caravan's ground first (patches, camels, the dune in front), in normal blending
+    if (caravan) {
+      caravan.step(dt);
+      caravan.drawGround(ctx);
+    }
     ctx.globalCompositeOperation = 'lighter';
     const k = Math.max(0.8, Math.min(1.6, scale * 1.3)); // sizes follow the picture's scale
 
@@ -170,12 +206,14 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement) {
       }
     }
 
-    // lanterns
-    layout.lanterns.forEach((l, i) => {
-      const [x, y] = map(l);
-      const a = 0.55 + 0.3 * Math.sin(clock * 7 + i * 1.7) * Math.sin(clock * 2.3 + i);
-      dot(x, y, 1.6 * k, WARM, a);
-    });
+    // lanterns: the caravan's own once it walks, else the painted ones flicker
+    if (caravan?.active) caravan.drawLights(ctx, clock);
+    else
+      layout.lanterns.forEach((l, i) => {
+        const [x, y] = map(l);
+        const a = 0.55 + 0.3 * Math.sin(clock * 7 + i * 1.7) * Math.sin(clock * 2.3 + i);
+        dot(x, y, 1.6 * k, WARM, a);
+      });
 
     // a shooting star every 6–12 seconds
     if (!shoot && clock > nextShoot) {
@@ -204,15 +242,23 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement) {
       }
     }
     ctx.globalCompositeOperation = 'source-over';
-    raf = requestAnimationFrame(frame);
   }
 
-  const ready = () => setup();
+  // A new size empties the canvas. While paused, paint the moment it stopped at again (the
+  // clock does not move), so the light and the caravan stay where they were.
+  const ready = () => {
+    setup();
+    if (!raf && painted) paint(0);
+  };
   if (img.complete) ready();
   img.addEventListener('load', ready); // also when the picture swaps between wide and tall
-  new ResizeObserver(() => setup()).observe(canvas);
+  new ResizeObserver(ready).observe(canvas);
 
   return {
+    // the words moved (fonts, a language note, a new size): only the caravan's way round them changes
+    relayout() {
+      placeCaravan();
+    },
     running(on: boolean) {
       if (on && !raf) {
         last = 0;

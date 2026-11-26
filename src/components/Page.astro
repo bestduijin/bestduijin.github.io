@@ -1,7 +1,7 @@
 ---
 // The whole page, in one language. Wording comes from src/copy.ts.
 import Base from '../layouts/Base.astro';
-import { copy, site, type Lang } from '../copy';
+import { copy, hints, site, type Lang } from '../copy';
 
 interface Props {
   lang: Lang;
@@ -9,31 +9,69 @@ interface Props {
 const { lang } = Astro.props;
 const c = copy[lang];
 
-// The demo loop under "What I do": a 15-second automation dashboard, rendered from
+// The demo loop below "What I do": a 15-second automation dashboard, rendered from
 // B003/讲解视频/主页封面_自动化大屏.
 const demo = (ext: 'mp4' | 'jpg') => `/cover/cover_${lang}_h.${ext}`;
 // The opening scene: a painted illustration (B003/个人主页_插画), with light that moves over it (src/scripts/sky.ts).
-const toggle = (labels: [string, string]) => ({
+// `words`: what the button shows (pause, play); `labels`: its full name for screen readers,
+// which always contains the words shown.
+const toggle = (labels: [string, string], words: [string, string] = [c.motion.pause, c.motion.play]) => ({
   'aria-label': labels[0],
-  'data-pause': c.motion.pause,
-  'data-play': c.motion.play,
+  'data-pause': words[0],
+  'data-play': words[1],
   'data-pause-label': labels[0],
   'data-play-label': labels[1],
 });
 
-// Line icons for the three cards in "What I do", stroked with the silk gradient.
-const ICONS = [
-  // read the process: a lens over a flow of steps
-  '<circle cx="14" cy="14" r="8"/><path d="M20 20l7 7"/><path d="M3 30h6M13 30h6M23 30h6" opacity=".55"/><circle cx="14" cy="14" r="2.5"/>',
-  // build the fix: blocks stacking up
-  '<rect x="4" y="18" width="11" height="11" rx="2"/><rect x="17" y="18" width="11" height="11" rx="2"/><rect x="10.5" y="5" width="11" height="11" rx="2"/>',
-  // let it run: a loop that keeps going
-  '<path d="M27 12a11 11 0 1 0 1.5 7"/><path d="M27 4v8h-8"/><path d="M13.5 12.5v7l6-3.5z"/>',
-];
+// The language notes this page may offer (src/scripts/hint.ts picks one): only those
+// pointing to the other page.
+const offers = Object.entries(hints).filter(([, h]) => h.to !== lang);
 
 // Chinese has no spaces, so a browser may break a line in the middle of a word.
-// In the introduction, lines may only break after punctuation.
+// In large type (the introduction, the headings, the motto), lines may only break after punctuation.
 const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，、；。]?/g) ?? [s]) : [s]);
+
+// The two paintings below the opening scene (public/art/, cropped from the opening painting for
+// now). Replace the files to change them; the page only knows their names.
+const art = {
+  band: { wide: '/art/band.webp', tall: '/art/band_tall.webp' },
+  ending: { wide: '/art/ending.webp', tall: '/art/ending_tall.webp' },
+};
+// Below the opening scene, large Chinese type breaks only between words (and never before
+// punctuation), so `text-wrap: balance` can even out the lines without splitting 经验 or 东西.
+// Headings go further, as in the introduction: they break at their punctuation first
+// (`phrases`), and between words only when a phrase is wider than the screen.
+const segmenter = new Intl.Segmenter('zh', { granularity: 'word' });
+const words = (s: string) => {
+  if (lang !== 'zh') return [s];
+  const out: string[] = [];
+  for (const { segment, isWordLike } of segmenter.segment(s)) {
+    if (!isWordLike && out.length) out[out.length - 1] += segment;
+    else out.push(segment);
+  }
+  return out;
+};
+const num = (i: number) => String(i + 1).padStart(2, '0');
+// Large Chinese type below the opening scene: phrases first, then words (see above).
+const big = (s: string) => phrases(s).map((p) => words(p));
+
+// Paragraphs: the last few words are held together, so no line ends up with one or two
+// characters (Chinese) or a single word (English) on it. Returns [the rest, the held tail].
+const SIGNS = /[，、；。：！？“”‘’（）《》\s]/g;
+const para = (s: string): [string, string] => {
+  if (lang === 'zh') {
+    const ws = words(s);
+    let tail = '';
+    while (ws.length && tail.replace(SIGNS, '').length < 4) tail = ws.pop() + tail;
+    return [ws.join(''), tail];
+  }
+  const m = s.match(/^(.*\S)\s+(\S+\s+\S+)$/);
+  return m ? [m[1] + ' ', m[2]] : ['', s];
+};
+
+// The demo video's five stages last three seconds each (CYCLE = 15, STEP = 3 in
+// B003/讲解视频/主页封面_自动化大屏/ui/screen.html), in the order of the table under it.
+const STAGE_SECONDS = 3;
 ---
 
 <Base lang={lang}>
@@ -48,112 +86,211 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
       </div>
     </div>
     <div class="bar-top">
-      <button class="motion-toggle" type="button" hidden {...toggle(c.motion.hero)}>{c.motion.pause}</button>
       <a class="switch" href={c.other.href} hreflang={c.other.hreflang} lang={c.other.hreflang}>{c.other.label}</a>
+      {
+        offers.map(([key, h]) => (
+          <p class="hint" data-hint={key} lang={h.lang} hidden>
+            <span class="hint-text">{h.text}</span>
+            <a href={copy[h.to].path} hreflang={copy[h.to].htmlLang}>{h.action}</a>
+            <button class="hint-close" type="button" aria-label={h.close}>
+              <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
+            </button>
+          </p>
+        ))
+      }
     </div>
     <div class="intro">
       <div class="mark">
         <h1 class="wordmark" lang="it">Serico</h1>
       </div>
-      <p class="say">{c.say}</p>
+      {/* Two lines: a short one, then a long one that stays on one line from tablets up. */}
       <p class="headline">
-        <span class="sentence">{phrases(c.headline).map((phrase) => <span class="phrase">{phrase}</span>)}</span>
-      </p>
-      <p class="lead">
-        {c.intro.map((sentence) => <span class="sentence">{phrases(sentence).map((phrase) => <span class="phrase">{phrase}</span>)}</span>)}
-      </p>
-      <dl class="figures">
         {
-          c.figures.map((f) => (
-            <div>
-              <dt>{f.label}</dt>
-              <dd>{f.value}</dd>
-            </div>
+          c.headline.map((line, i) => (
+            <span class:list={['sentence', i === 1 && 'long']}>
+              {phrases(line).map((phrase) => (
+                <span class="phrase">{phrase.split(/(\S+-\S+)/).map((bit, k) => (k % 2 ? <span class="glue">{bit}</span> : bit))}</span>
+              ))}
+            </span>
           ))
         }
-      </dl>
+      </p>
+      {/* Three numbers, each leading to the part of the page that bears it out. */}
+      <ul class="figures">
+        {
+          c.figures.map((f) => (
+            <li>
+              <a href={`#${f.to}`}>
+                <span class="value">{f.value}</span>
+                <span class="tag">{f.tag}</span>
+                <span class="cue" aria-hidden="true">↓</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      {/* Pauses the scene's motion: low in the right corner on wide screens, under the numbers on narrower ones. */}
+      <button class="motion-toggle" type="button" hidden {...toggle(c.motion.hero, c.motion.hero)}>{c.motion.hero[0]}</button>
     </div>
   </header>
 
-  <main>
-    <section class="row wide" aria-labelledby="skills">
-      <h2 id="skills">{c.skills.heading}</h2>
-      <div class="col">
-        <ol class="skills">
+  <div class="night">
+    {/* The silk thread (src/scripts/silk.ts draws it; without script it is simply absent). */}
+    <svg class="silk" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="silk-fall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--silk-teal)"></stop>
+          <stop offset=".5" stop-color="var(--silk-gold)"></stop>
+          <stop offset="1" stop-color="var(--silk-rose)"></stop>
+        </linearGradient>
+        <linearGradient id="silk-line" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="var(--silk-rose)"></stop>
+          <stop offset=".5" stop-color="var(--silk-gold)"></stop>
+          <stop offset="1" stop-color="var(--silk-teal)"></stop>
+        </linearGradient>
+      </defs>
+      <g class="fall" stroke="url(#silk-fall)"><path class="glow"></path><path class="core"></path></g>
+      <g class="line" stroke="url(#silk-line)"><path class="glow"></path><path class="core"></path></g>
+    </svg>
+
+    <main>
+      <section class="act signs" aria-labelledby="signs">
+        <h2 id="signs" class="display">{big(c.signs.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <ul class="signs-list">
           {
-            c.skills.items.map((s, i) => (
-              <li class="card">
-                <span class="card-top" aria-hidden="true">
-                  <svg class="icon" viewBox="0 0 32 32" set:html={`<defs><linearGradient id="silk${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--silk-rose)"/><stop offset=".5" stop-color="var(--silk-gold)"/><stop offset="1" stop-color="var(--silk-teal)"/></linearGradient></defs><g fill="none" stroke="url(#silk${i})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[i]}</g>`} />
-                  <span class="num">{String(i + 1).padStart(2, '0')}</span>
-                </span>
-                <h3>{s.title}</h3>
-                <p>{s.body}</p>
+            c.signs.items.map((s) => (
+              <li>
+                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h3>
+                <p>{para(s.body)[0]}<span class="glue">{para(s.body)[1]}</span></p>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section class="act work" aria-labelledby="work">
+        <h2 id="work" class="display">{big(c.work.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <ol class="steps">
+          {
+            c.work.steps.map((s, i) => (
+              <li>
+                <span class="step-num" aria-hidden="true">{num(i)}</span>
+                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h3>
+                <p>{para(s.body)[0]}<span class="glue">{para(s.body)[1]}</span></p>
               </li>
             ))
           }
         </ol>
-        <figure class="demo" data-motion="video">
-          <video class="demo-video" muted loop playsinline preload="none" poster={demo('jpg')} disablepictureinpicture aria-hidden="true">
-            <source src={demo('mp4')} type="video/mp4" />
-          </video>
-          <figcaption>
-            <span>{c.skills.demo}</span>
-            <button class="motion-toggle" type="button" hidden {...toggle(c.motion.demo)}>{c.motion.pause}</button>
-          </figcaption>
-        </figure>
-      </div>
-    </section>
+      </section>
 
-    <section class="row" aria-labelledby="now">
-      <h2 id="now">{c.now.heading}</h2>
-      <div class="col">
-        {c.now.body.map((p) => <p>{p}</p>)}
-      </div>
-    </section>
+      <section class="act demo" aria-labelledby="demo">
+        <h2 id="demo" class="display">{big(c.demo.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        {/* The lead, with the video's pause button on its right (under the video on phones),
+            the video, the table of what each stage hands over, and two notes under it. */}
+        <div class="demo-body" data-motion="video">
+          <p class="demo-lead">{para(c.demo.lead)[0]}<span class="glue">{para(c.demo.lead)[1]}</span></p>
+          <button class="motion-toggle" type="button" hidden {...toggle(c.motion.demo)}>{c.motion.pause}</button>
+          <div class="frame">
+            <video muted loop playsinline preload="none" poster={demo('jpg')} disablepictureinpicture aria-hidden="true">
+              <source src={demo('mp4')} type="video/mp4" />
+            </video>
+          </div>
+          {/* What each stage in the video takes off people's hands, and what stays with them.
+              The script lights the row the video is on and makes each stage's name a button
+              that jumps the video there; without it (or with reduced motion) this is a plain table. */}
+          <div class="roles-head" aria-hidden="true">
+            <span>{c.demo.columns[0]}</span>
+            <span class="cells">{c.demo.columns.slice(1).map((h) => <span>{h}</span>)}</span>
+          </div>
+          <ol class="roles" data-seconds={STAGE_SECONDS} data-seek={c.seek}>
+            {
+              c.demo.stages.map((s, i) => (
+                <li data-at={i * STAGE_SECONDS}>
+                  <h3 class="stage">
+                    <span class="stage-num" aria-hidden="true">{num(i)}</span>
+                    <span class="stage-name">{s.name}</span>
+                  </h3>
+                  <dl>
+                    {[s.before, s.machine, s.person].map((text, k) => (
+                      <div>
+                        <dt>
+                          <span class="dt-long">{c.demo.columns[k + 1]}</span>
+                          <span class="dt-short" aria-hidden="true">{c.demo.short[k]}</span>
+                        </dt>
+                        <dd>{para(text)[0]}<span class="glue">{para(text)[1]}</span></dd>
+                      </div>
+                    ))}
+                  </dl>
+                </li>
+              ))
+            }
+          </ol>
+          <div class="notes">
+            <p>{para(c.demo.bridge)[0]}<span class="glue">{para(c.demo.bridge)[1]}</span></p>
+            <p class="aside">{c.demo.disclaimer}</p>
+          </div>
+        </div>
+      </section>
 
-    <section class="row" aria-labelledby="latest">
-      <h2 id="latest">{c.latest.heading}</h2>
-      <div class="col">
-        {
-          c.latest.items.length ? (
+      <section class="act limits" aria-labelledby="limits">
+        <h2 id="limits" class="display">{big(c.limits.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <ul class="limits-list">
+          {
+            c.limits.items.map((s) => (
+              <li>
+                <h3>{big(s.title).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h3>
+                <p>{para(s.body)[0]}<span class="glue">{para(s.body)[1]}</span></p>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section class="act now" aria-labelledby="now">
+        <h2 id="now" class="display">{big(c.now.heading).map((p) => <span class="phrase">{p.map((w) => <span class="w">{w}</span>)}</span>)}</h2>
+        <div class="prose">
+          {c.now.body.map((p) => <p>{para(p)[0]}<span class="glue">{para(p)[1]}</span></p>)}
+        </div>
+      </section>
+
+      {
+        c.latest.items.length > 0 && (
+          <section class="act latest" aria-labelledby="latest">
+            <h2 id="latest" class="display">{c.latest.heading}</h2>
             <ul class="posts">
               {c.latest.items.map((p) => (
                 <li>
                   <a href={p.href}>
+                    <span class="post-title">{p.title}</span>
                     <span class="post-meta">
                       {p.kind} · {p.where} · <time datetime={p.date}>{p.date}</time>
                     </span>
-                    <span class="post-title">{p.title}</span>
                   </a>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p class="empty">{c.latest.empty}</p>
-          )
-        }
-      </div>
-    </section>
+          </section>
+        )
+      }
 
-    <section class="row" aria-labelledby="find">
-      <h2 id="find">{c.find.heading}</h2>
-      <p class="col find">
-        <span class="where">{c.find.github}</span>
-        <a href={site.github.href} rel="me">{site.github.label}</a>
-      </p>
-    </section>
-
-    <section class="row coda" aria-labelledby="name">
-      <h2 id="name">{c.name.heading}</h2>
-      <div class="col">
-        <p class="motto">
-          {c.name.motto.map((sentence) => <span class="sentence">{phrases(sentence).map((phrase) => <span class="phrase">{phrase}</span>)}</span>)}
-        </p>
+      <section class="act name" aria-labelledby="name">
+        <div class="name-head">
+          <div class="art band" aria-hidden="true">
+            <picture>
+              <source media="(max-width: 47.99rem)" srcset={art.band.tall} />
+              <img src={art.band.wide} alt="" loading="lazy" decoding="async" />
+            </picture>
+          </div>
+          <h2 id="name" class="visually-hidden">{c.name.heading}</h2>
+          <p class="motto">
+            {c.name.motto.map((sentence) => <span class="sentence">{words(sentence).map((w) => <span class="w">{w}</span>)}</span>)}
+          </p>
+        </div>
         <ol class="stops">
           {
             c.name.stops.map((s) => (
               <li>
+                <span class="knot" aria-hidden="true"></span>
                 <span class="word" lang={s.lang}>{s.word}</span>
                 <span class="from">{s.from}</span>
                 <span class="means">{s.means}</span>
@@ -161,18 +298,108 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
             ))
           }
         </ol>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
 
-  <footer class="foot">
-    <p>© {site.year} Serico</p>
-    <p>{c.colophon}</p>
-  </footer>
+    <footer class="ending">
+      <div class="art" aria-hidden="true">
+        <picture>
+          <source media="(max-width: 47.99rem)" srcset={art.ending.tall} />
+          <img src={art.ending.wide} alt="" loading="lazy" decoding="async" />
+        </picture>
+      </div>
+      {
+        c.find.links.length > 0 && (
+          <div class="find">
+            <h2>{c.find.heading}</h2>
+            {c.find.links.map((l) => <a href={l.href}>{l.label}</a>)}
+          </div>
+        )
+      }
+      <div class="colophon">
+        <p><span class="sign" lang="it">Serico</span> © {site.year}</p>
+        <p class="foot-links">
+          <a href={c.other.href} hreflang={c.other.hreflang} lang={c.other.hreflang} data-switch>{c.other.label}</a>
+          <a href="#top">{c.top}</a>
+        </p>
+      </div>
+    </footer>
+  </div>
 </Base>
 
 <script>
   import { startSky } from '../scripts/sky';
+  import { createCaravan } from '../scripts/caravan';
+  import { startHint } from '../scripts/hint';
+  import { startSilk } from '../scripts/silk';
+
+  startHint();
+  startSilk(document.querySelector<HTMLElement>('.night')!);
+
+  // The opening scene: the sky's light, and the caravan walking the golden road (src/scripts/caravan.ts).
+  // The caravan keeps clear of the words: their places are measured here, on the page as it is,
+  // and measured again whenever they can move (fonts, a new size, the language note).
+  function startHero(hero: HTMLElement) {
+    const canvas = hero.querySelector('canvas')!;
+    const scene = hero.querySelector<HTMLElement>('.scene')!;
+    const drift = hero.querySelector<HTMLElement>('.drift')!;
+    // The drift (the CSS above) scales the canvas about its origin and shifts it. Its two ends:
+    const ends = () => {
+      const cs = getComputedStyle(drift);
+      const num = (name: string) => parseFloat(cs.getPropertyValue(name));
+      const [ox, oy] = cs.transformOrigin.split(' ').map(parseFloat);
+      const W = drift.clientWidth, H = drift.clientHeight;
+      return { ox, oy, W, H, ends: [{ s: num('--drift-from'), tx: 0, ty: 0 }, { s: num('--drift-to'), tx: (num('--drift-x') / 100) * W, ty: (num('--drift-y') / 100) * H }] };
+    };
+    // A point seen at (X, Y) on the scene is, in the canvas's own pixels, at each end of the drift:
+    const back = (X: number, Y: number) => {
+      const d = ends();
+      return d.ends.map(({ s, tx, ty }) => [d.ox + (X - d.ox) / s - tx, d.oy + (Y - d.oy) / s - ty]);
+    };
+    const avoid = () => {
+      const box = scene.getBoundingClientRect();
+      const out: [number, number, number, number][] = [];
+      const range = document.createRange();
+      // the words themselves (each line box of text), and the buttons and links as whole boxes
+      const words = hero.querySelectorAll<HTMLElement>('.bar-top > :not([hidden]), .intro > :not([hidden])');
+      const add = (q: DOMRect) => {
+        if (!q.width || !q.height) return;
+        const a = back(q.left - box.left, q.top - box.top), b = back(q.right - box.left, q.bottom - box.top);
+        out.push([Math.min(a[0][0], a[1][0]), Math.min(a[0][1], a[1][1]), Math.max(b[0][0], b[1][0]), Math.max(b[0][1], b[1][1])]);
+      };
+      for (const el of words) {
+        for (const c of el.querySelectorAll('a, button')) add(c.getBoundingClientRect());
+        if (el.matches('a, button')) add(el.getBoundingClientRect());
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          if (!n.textContent!.trim()) continue;
+          range.selectNodeContents(n);
+          for (const q of range.getClientRects()) add(q);
+        }
+      }
+      return out;
+    };
+    // what is seen of the canvas on the right, at whichever end of the drift crops more
+    const edge = () => Math.min(...back(drift.clientWidth, 0).map(([x]) => x));
+    const caravan = createCaravan();
+    const sky = startSky(canvas, hero.querySelector('img')!, { caravan, avoid, edge });
+    // re-measure when the words can have moved
+    let pending = 0;
+    const again = () => {
+      cancelAnimationFrame(pending);
+      pending = requestAnimationFrame(() => {
+        sky.relayout();
+        // walks, or stays as painted (when the words leave it no way), for anyone checking
+        hero.dataset.caravan = caravan.state.on ? 'walks' : 'stays';
+      });
+    };
+    document.fonts.ready.then(again);
+    document.fonts.addEventListener('loadingdone', again);
+    const watch = new ResizeObserver(again);
+    for (const el of hero.querySelectorAll('.bar-top, .intro, .hint, .motion-toggle')) watch.observe(el);
+    new MutationObserver(again).observe(hero, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    return sky;
+  }
 
   // Every moving part can be paused (WCAG 2.2.2 Pause, Stop, Hide), and nothing moves
   // on its own when the visitor asks the system for reduced motion.
@@ -183,7 +410,9 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     if (!button) continue;
     // Plays unless reduced motion is on; the button is the visitor's own choice and wins.
     let playing = !reduce.matches;
-    let visible = true;
+    // Off screen until the observer below says otherwise (its first report comes right away), so
+    // nothing starts, and the video (preload="none") does not load, before it is on screen.
+    let visible = false;
 
     let run: (on: boolean) => void;
     if (block.dataset.motion === 'video') {
@@ -194,7 +423,7 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
         else video.pause();
       };
     } else {
-      const sky = startSky(block.querySelector('canvas')!, block.querySelector('img')!);
+      const sky = startHero(block);
       run = (on) => sky.running(on);
     }
 
@@ -205,10 +434,12 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
       run(playing && visible); // only spend effort while on screen
     };
 
+    // The video plays only while the video itself is on screen (its block also holds the table).
+    // (The last report is the latest: going out and in again within a frame gives two.)
     new IntersectionObserver((entries) => {
-      visible = entries[0].isIntersecting;
+      visible = entries[entries.length - 1].isIntersecting;
       update();
-    }).observe(block);
+    }).observe(block.querySelector('.frame') ?? block);
     button.hidden = false;
     button.addEventListener('click', () => {
       playing = !playing;
@@ -219,6 +450,79 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
       update();
     });
     update();
+  }
+
+  // The table under the demo video follows it: the row of the stage on screen is lit, and each
+  // stage's name becomes a button that jumps the video to the start of that stage, leaving it
+  // playing or paused as it was. With reduced motion it stays a plain table.
+  const table = document.querySelector<HTMLOListElement>('.roles');
+  const video = document.querySelector<HTMLVideoElement>('.demo video');
+  if (table && video) {
+    const seconds = Number(table.dataset.seconds);
+    const rows = [...table.querySelectorAll<HTMLLIElement>(':scope > li')];
+    // Nothing is lit until the video shows its own frames (before that, the poster shows the
+    // fourth stage whatever the time says).
+    let shown = false;
+    let lit = -1;
+    const mark = () => {
+      const at = table.classList.contains('linked') && shown ? Math.min(rows.length - 1, Math.floor(video.currentTime / seconds + 1e-6)) : -1;
+      if (at === lit) return;
+      lit = at;
+      rows.forEach((row, i) => {
+        row.classList.toggle('on', i === at);
+        // Marked for screen readers, but not announced as it changes (no live region).
+        if (i === at) row.setAttribute('aria-current', 'step');
+        else row.removeAttribute('aria-current');
+      });
+    };
+    const seek = (i: number) => {
+      const to = Number(rows[i].dataset.at) + 0.02;
+      if (video.readyState === 0) {
+        // Not loaded yet (paused before it ever played): load it, then go there.
+        video.addEventListener('loadedmetadata', () => (video.currentTime = to), { once: true });
+        video.preload = 'auto';
+        video.load();
+      } else video.currentTime = to;
+    };
+    const buttons = rows.map((row, i) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'stage-go';
+      const hint = document.createElement('span');
+      hint.className = 'visually-hidden';
+      hint.textContent = table.dataset.seek!;
+      button.addEventListener('click', () => seek(i));
+      // The whole row answers a click, not only the name.
+      row.addEventListener('click', (e) => {
+        if (!table.classList.contains('linked') || button.contains(e.target as Node) || String(getSelection())) return;
+        seek(i);
+      });
+      return { row, button, hint };
+    });
+    const link = (on: boolean) => {
+      if (on === table.classList.contains('linked')) return;
+      table.classList.toggle('linked', on);
+      for (const { row, button, hint } of buttons) {
+        const h = row.querySelector('h3')!;
+        if (on) {
+          button.replaceChildren(...h.childNodes, hint);
+          h.append(button);
+        } else {
+          hint.remove();
+          h.replaceChildren(...button.childNodes);
+        }
+      }
+      mark();
+    };
+    for (const type of ['playing', 'seeked']) video.addEventListener(type, () => ((shown = true), mark()));
+    video.addEventListener('timeupdate', mark);
+    // Frame-exact while it plays, where the browser offers it.
+    if ('requestVideoFrameCallback' in video) {
+      const tick = () => (mark(), video.requestVideoFrameCallback(tick));
+      video.requestVideoFrameCallback(tick);
+    }
+    link(!reduce.matches);
+    reduce.addEventListener('change', () => link(!reduce.matches));
   }
 </script>
 
@@ -253,8 +557,14 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     z-index: -1;
     overflow: hidden;
   }
-  /* The picture drifts very slowly, like a camera breathing. */
+  /* The picture drifts very slowly, like a camera breathing. The numbers are custom properties
+     because the caravan (src/scripts/caravan.ts) reads them too: it must turn to lights before the
+     drift crops it at the right edge. Change them here only. */
   .drift {
+    --drift-from: 1.02;
+    --drift-to: 1.09;
+    --drift-x: -1.2%;
+    --drift-y: 0.8%;
     position: absolute;
     inset: 0;
     animation: drift 36s ease-in-out infinite alternate;
@@ -265,10 +575,10 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
   }
   @keyframes drift {
     from {
-      transform: scale(1.02);
+      transform: scale(var(--drift-from));
     }
     to {
-      transform: scale(1.09) translate(-1.2%, 0.8%);
+      transform: scale(var(--drift-to)) translate(var(--drift-x), var(--drift-y));
     }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -301,13 +611,126 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     }
   }
   .bar-top {
+    position: relative; /* anchors the language note */
     justify-self: end;
     display: flex;
     gap: 1.25rem;
     align-items: center;
   }
+  /* The bright ribbons of the painting pass behind this corner at some widths. A faint pool of
+     night under the language link (and its note), and a soft shadow round the link's
+     letters, keep them readable there (at least 4.5:1) without a visible patch on the painting. */
+  .bar-top::before {
+    content: '';
+    position: absolute;
+    inset: -2.25rem -2.75rem -2.25rem -2.75rem;
+    z-index: -1;
+    background: radial-gradient(closest-side, rgb(8 12 32 / 0.5), rgb(8 12 32 / 0.32) 55%, rgb(8 12 32 / 0));
+    pointer-events: none;
+  }
   .switch {
     font-size: 0.95rem;
+    text-shadow:
+      0 0 3px rgb(8 12 32 / 0.9),
+      0 0 10px rgb(8 12 32 / 0.8),
+      0 0 22px rgb(8 12 32 / 0.6);
+  }
+  /* ---------- The language note, hanging just under the language link ---------- */
+  /* It hangs in the 2rem gap between this bar and the wordmark (the hero's row-gap), so on
+     phones, where that gap is all there is, it must stay under 2rem tall. */
+  .hint {
+    position: absolute;
+    top: calc(100% + 0.2rem);
+    right: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: max-content;
+    max-width: calc(100vw - 2 * var(--gutter));
+    margin: 0;
+    padding: 0.15rem 0.2rem 0.15rem 0.75rem;
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    white-space: nowrap;
+    background: color-mix(in srgb, var(--ground) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink-soft) 45%, transparent);
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    animation: hint-in 0.4s ease-out both;
+  }
+  .hint[hidden] {
+    display: none;
+  }
+  /* a dot of the silk gradient, as in "Latest" */
+  .hint::before {
+    content: '';
+    flex: none;
+    width: 0.45em;
+    height: 0.45em;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--silk-rose), var(--silk-gold));
+  }
+  .hint a {
+    flex: none;
+    color: var(--ink);
+  }
+  .hint-close {
+    position: relative;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    padding: 0;
+    color: var(--ink-soft);
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  /* a 28px hit area around the small visible button */
+  .hint-close::after {
+    content: '';
+    position: absolute;
+    inset: -0.2rem;
+  }
+  .hint-close:hover {
+    color: var(--ink);
+  }
+  .hint-close:focus-visible {
+    outline: 2px solid var(--rouge);
+    outline-offset: 1px;
+  }
+  .hint-close svg {
+    width: 0.7rem;
+    height: 0.7rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+  /* The narrowest phones: drop the dot so the English note still fits on one line. */
+  @media (max-width: 22.5rem) {
+    .hint {
+      gap: 0.4rem;
+      padding-left: 0.65rem;
+    }
+    .hint::before {
+      display: none;
+    }
+  }
+  @keyframes hint-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hint {
+      animation: none;
+    }
   }
   /* Pause / play, for the scene and for the demo video. */
   .motion-toggle {
@@ -328,28 +751,6 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     outline: 2px solid var(--rouge);
     outline-offset: 3px;
   }
-  /* ---------- The demo video under "What I do" ---------- */
-  .demo {
-    margin: 2.75rem 0 0;
-  }
-  .demo video {
-    display: block;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    border-radius: 14px;
-    background: #070d16;
-    box-shadow: 0 18px 50px -20px rgb(0 0 0 / 0.45);
-  }
-  .demo figcaption {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-top: 0.85rem;
-    color: var(--ink-soft);
-    font-size: 0.85em;
-    line-height: 1.6;
-  }
   .intro {
     align-self: end;
   }
@@ -365,46 +766,164 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
     line-height: 0.92;
     letter-spacing: -0.02em;
   }
-  /* The ribbon's tail leaves the page just under the wordmark; the text starts below it. */
+  /* The ribbon's tail leaves the page just under the wordmark; the text starts below it.
+     Two lines in one size: a short one, then a long one. From tablets up the long one stays on
+     one line, so the size follows the screen's width (each language has its own measure);
+     on phones it may break, at its comma (Chinese) or between words (English). */
   .headline {
-    margin: max(1.25rem, 4 * var(--u)) 0 0;
-    font-size: clamp(1.35rem, 6.2vw, 2.6rem);
+    margin: max(1.5rem, 4.5 * var(--u)) 0 0;
+    /* 28px from about 390 wide; the narrowest phones a little less, so the Chinese phrases
+       (which only break at their commas) still fit across the screen. */
+    font-size: clamp(1.35rem, 7.2vw, 1.75rem);
     line-height: 1.35;
     letter-spacing: 0.01em;
+    /* On the smallest phones the lines climb into the lit sky: a soft shadow, like the wordmark's. */
+    text-shadow: 0 1px 18px rgb(8 12 32 / 0.65);
   }
-  .lead {
-    margin: 1.1rem 0 0;
-    max-width: 36em;
-    color: var(--ink-soft);
-    font-size: clamp(1rem, 3.6vw, 1.2rem);
-    line-height: 1.8;
+  /* Chinese phones: the widest phrase (使用 AI 变成能赚钱的系统。, 12.8em) must fit across the
+     screen, since it may not break inside: 26.5px at 390 wide, 22px at 320. */
+  @media (max-width: 47.99rem) {
+    .headline:lang(zh-Hans) {
+      font-size: clamp(1.35rem, 6.8vw, 1.75rem);
+    }
+  }
+  /* Tablets: at least 28px; the long line breaks between words (Chinese: after its comma). */
+  @media (min-width: 48rem) {
+    .headline {
+      font-size: clamp(1.75rem, 3.6vw, 2.6rem);
+    }
+    .headline:lang(en) {
+      font-size: 1.75rem;
+    }
+  }
+  /* From 1024 wide: exactly two lines, the long one held on one line and sized to the screen. */
+  @media (min-width: 64rem) {
+    .headline:lang(en) {
+      font-size: clamp(1.75rem, 2.75vw, 2.6rem);
+    }
+    .headline .long {
+      white-space: nowrap;
+    }
   }
 
-  /* Three numbers in a row, the figure large and its meaning under it. */
+  /* Three numbers in a row, each with a one-word tag on its baseline. Each one is a link to the
+     part of the page that bears it out; the line above it brightens under the pointer. */
   .figures {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, max-content));
-    gap: 1.25rem clamp(2rem, 6vw, 5rem);
-    margin: clamp(1.75rem, 4svh, 2.75rem) 0 0;
+    gap: 1rem clamp(2rem, 6vw, 5rem);
+    margin: clamp(2rem, 5svh, 3.25rem) 0 0;
+    padding: 0;
+    list-style: none;
   }
-  .figures div {
+  .figures a {
+    position: relative;
     display: flex;
-    flex-direction: column-reverse;
-    border-top: 1px solid var(--rouge);
-    padding-top: 0.8rem;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.8rem 0 0.15rem;
+    color: inherit;
+    text-decoration: none;
   }
-  .figures dd {
-    margin: 0;
+  .figures a::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--rouge);
+    opacity: 0.55;
+    transition:
+      opacity 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+  .figures a:hover::before,
+  .figures a:focus-visible::before {
+    opacity: 1;
+    box-shadow: 0 0 10px rgb(255 163 180 / 0.6);
+  }
+  .figures a:hover {
+    color: var(--ink);
+  }
+  .value {
     font-size: clamp(1.5rem, 4.2vw, 2.25rem);
     line-height: 1.2;
     white-space: nowrap;
     font-variant-numeric: lining-nums;
   }
-  .figures dt {
-    margin-top: 0.35rem;
+  .tag {
     color: var(--ink-soft);
-    font-size: 0.85rem;
-    line-height: 1.5;
+    font-family: var(--sans-en);
+    /* A note beside the number: easy to read, clearly smaller than it (15px on phones, 17px wide). */
+    font-size: clamp(0.9375rem, 0.85rem + 0.25vw, 1.0625rem);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .tag:lang(zh-Hans) {
+    font-family: var(--sans-zh);
+  }
+  /* A small arrow after the tag: the number leads down the page. Quiet until the pointer or the
+     keyboard is on it, then it lights with the line above. */
+  .cue {
+    margin-left: -0.25rem;
+    color: var(--ink-soft);
+    font-family: var(--sans-en);
+    font-size: 0.875rem;
+    line-height: 1;
+    opacity: 0.55;
+    transition:
+      opacity 0.3s ease,
+      color 0.3s ease,
+      transform 0.3s ease;
+  }
+  .figures a:hover .cue,
+  .figures a:focus-visible .cue {
+    color: var(--rouge);
+    opacity: 1;
+    transform: translateY(2px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .figures a::before,
+    .cue {
+      transition: none;
+    }
+    .figures a:hover .cue,
+    .figures a:focus-visible .cue {
+      transform: none;
+    }
+  }
+  /* The scene's pause button: small and quiet. On wide screens it sits low in the right corner,
+     level with the numbers; on narrower ones, where the numbers run across, under them on the right. */
+  .intro > .motion-toggle {
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--ink-soft);
+    background: rgb(8 12 32 / 0.35);
+    border-color: rgb(201 198 216 / 0.32);
+  }
+  .intro > .motion-toggle:not([hidden]) {
+    display: block;
+    margin: 1.25rem 0 0 auto;
+  }
+  @media (min-width: 64rem) {
+    .intro > .motion-toggle:not([hidden]) {
+      position: absolute;
+      right: var(--gutter);
+      bottom: calc(clamp(2.5rem, 7svh, 5rem) + 0.35rem);
+      margin: 0;
+    }
+  }
+  /* Phones: the three numbers stack, and the scene fills the screen (the words are few, so
+     without this it would shrink to their height and hide most of the painting). */
+  @media (max-width: 46rem) {
+    .figures {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .hero {
+      min-height: min(100svh, 52rem);
+    }
   }
   /* One sentence per line; a sentence too long for the screen splits evenly. */
   .sentence {
@@ -417,268 +936,1007 @@ const phrases = (s: string) => (lang === 'zh' ? (s.match(/[^，、；。]+[，�
   :lang(en) .phrase {
     display: inline;
   }
-  :lang(en) .lead {
-    max-width: 34em;
-    line-height: 1.5;
-  }
-  .say {
-    margin: 0.75rem 0 0;
+
+  /* ================= Below the opening scene: one night, one thread ================= */
+  .night {
+    /* One set of distances for the whole page. */
+    --act: clamp(5.5rem, 3.25rem + 7vw, 10rem); /* between sections */
+    --lead: clamp(2.25rem, 1.5rem + 2.5vw, 4rem); /* a heading to what follows it */
+    --wide: 84rem; /* the widest a section's content runs */
+    position: relative;
+    isolation: isolate;
+    overflow-x: clip; /* the full-bleed paintings and the motto's dark pool stop at the screen's edge */
+    /* The opening scene ends on #070c20: start there and settle into the night ground. */
+    background: linear-gradient(#070c20, var(--ground) 40rem);
     color: var(--ink-soft);
-    font-size: 0.95rem;
+    font-family: var(--sans-en);
+    /* Body text. Jost is small on its feet (a low x-height), so it is set a step larger than a
+       usual sans to read like one at 18px: 19px on phones, 20px wide. Chinese 17px → 18px. */
+    font-size: clamp(1.1875rem, 1.1rem + 0.2vw, 1.25rem);
+    line-height: 1.7;
+  }
+  .night:lang(zh-Hans) {
+    font-family: var(--sans-zh);
+    font-size: clamp(1.0625rem, 1rem + 0.15vw, 1.125rem);
+    line-height: 1.9;
   }
 
-  /* ---------- Sections: a name on the left, the text on the right ---------- */
+  /* ---------- The thread ---------- */
+  .silk {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+    /* It comes out of the opening scene: faded in over its first 130px. */
+    -webkit-mask-image: linear-gradient(transparent, #000 130px);
+    mask-image: linear-gradient(transparent, #000 130px);
+  }
+  .silk path {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    visibility: hidden; /* until the script has placed and measured it */
+  }
+  .silk .core {
+    stroke-width: 1.6px;
+  }
+  /* The soft light around it: a wide, faint stroke (no blur filter, so scrolling stays cheap). */
+  .silk .glow {
+    stroke-width: 7px;
+    opacity: 0.16;
+  }
+
   main {
     padding-inline: var(--gutter);
   }
-  .row {
-    display: grid;
-    grid-template-columns: minmax(0, 13rem) minmax(0, 31em);
-    column-gap: clamp(1.5rem, 5vw, 5rem);
-    padding-block: clamp(2.5rem, 5vw, 4rem);
+  /* Every section sits on the page's centre line, like the motto. */
+  .act {
+    max-width: var(--wide);
+    margin-inline: auto;
+    padding-top: var(--act);
   }
-  .row > h2 {
-    margin: 0;
-    color: var(--ink-soft);
-    font-size: 1em;
-    font-weight: 400;
-    line-height: inherit;
+  .w {
+    display: inline-block;
   }
-  .col > p {
-    margin: 0;
+  .w:lang(en) {
+    display: inline;
   }
-  .col > p + p {
-    margin-top: 1.1em;
+  /* No paragraph ends on a single word or character. */
+  .night p {
+    text-wrap: pretty;
   }
-  .wide {
-    grid-template-columns: minmax(0, 13rem) minmax(0, 52rem);
+  /* One measure for body text: about 60–75 characters a line in English, 30–38 in Chinese. */
+  .signs-list p,
+  .steps p,
+  .notes p,
+  .limits-list p,
+  .prose p {
+    max-width: 33em;
+  }
+  .night:lang(zh-Hans) :is(.signs-list, .notes, .limits-list, .prose) p {
+    max-width: 36em;
+  }
+  /* The situations and the steps: two-line texts, held to 30 characters a line so the second line
+     is not a short stub. */
+  .night:lang(zh-Hans) .signs-list p {
+    max-width: 30em;
+  }
+  /* The last few words of a paragraph, held together (`para` in the frontmatter). */
+  .glue {
+    white-space: nowrap;
+  }
+  /* Short texts of two to four lines: evened out. (Not the steps' descriptions: evened out, each
+     would take its own width and the column would look ragged.) */
+  .means,
+  .night h3 {
+    text-wrap: balance;
   }
 
-  /* ---------- What I do: three cards edged with the silk of the opening scene ---------- */
-  .skills {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: clamp(1rem, 2.2vw, 1.75rem);
+  /* One large line opens every section. */
+  .display {
     margin: 0;
-    padding: 0;
+    max-width: 17em;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: clamp(2.05rem, 1.2rem + 2.9vw, 3.75rem);
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  /* Reached from the three numbers at the top: land with room above the heading. */
+  .display[id] {
+    scroll-margin-top: clamp(2.5rem, 10vh, 6rem);
+  }
+  /* The demo: land close under its heading, so the video comes into view with it. */
+  .display#demo {
+    scroll-margin-top: 1.25rem;
+  }
+  .display:lang(zh-Hans) {
+    max-width: 16em;
+    font-family: var(--font-zh);
+    font-size: clamp(1.5rem, 1rem + 2.4vw, 3rem);
+    line-height: 1.42;
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- Situations: the line on the left, three plain entries on the right ---------- */
+  /* The lightest scene: no numbers, only hairlines between the entries. */
+  .signs {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    column-gap: clamp(2rem, 6vw, 6.5rem);
+    align-items: start;
+  }
+  .signs .display {
+    max-width: 10em;
+  }
+  .signs .display:lang(zh-Hans) {
+    max-width: none; /* the column sets the measure; it breaks at its comma */
+  }
+  .signs-list {
+    margin: 0;
+    padding: 0.4rem 0 0;
     list-style: none;
   }
-  .card {
-    position: relative;
-    padding: 1.4rem 1.4rem 1.6rem;
-    border-radius: 18px;
-    border: 1px solid transparent;
-    /* a fill inside, the silk gradient showing through only on the border */
-    background:
-      linear-gradient(var(--card-fill), var(--card-fill)) padding-box,
-      linear-gradient(135deg, var(--silk-rose), var(--silk-gold) 50%, var(--silk-teal)) border-box;
-    box-shadow: 0 18px 40px -28px var(--card-glow);
-    transition:
-      transform 0.25s ease,
-      box-shadow 0.25s ease;
+  .signs-list li + li {
+    margin-top: clamp(1.6rem, 1rem + 1.5vw, 2.25rem);
+    padding-top: clamp(1.6rem, 1rem + 1.5vw, 2.25rem);
+    border-top: 1px solid var(--hairline);
   }
-  .card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 24px 50px -24px var(--card-glow);
+  .signs-list h3,
+  .limits-list h3 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: clamp(1.45rem, 1.2rem + 0.6vw, 1.75rem);
+    font-weight: 400;
+    line-height: 1.3;
   }
-  @media (prefers-reduced-motion: reduce) {
-    .card,
-    .card:hover {
-      transition: none;
-      transform: none;
+  .signs-list h3:lang(zh-Hans),
+  .limits-list h3:lang(zh-Hans) {
+    font-family: var(--font-zh);
+    font-size: clamp(1.3rem, 1.1rem + 0.5vw, 1.55rem);
+    line-height: 1.5;
+    letter-spacing: 0.03em;
+  }
+  .signs-list p,
+  .limits-list p {
+    margin: 0.7rem 0 0;
+  }
+
+  /* ---------- The approach: four steps in a row each ---------- */
+  .steps {
+    margin: var(--lead) 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--hairline);
+  }
+  .steps li {
+    display: grid;
+    grid-template-columns: clamp(4.5rem, 3rem + 4vw, 7.5rem) minmax(0, 1fr) minmax(0, 1.5fr);
+    column-gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: baseline;
+    padding-block: clamp(1.75rem, 1rem + 2vw, 2.75rem);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .step-num {
+    color: var(--ink-faint);
+    font-family: var(--font-en);
+    font-size: clamp(1.9rem, 1.4rem + 1.4vw, 2.75rem);
+    font-style: italic;
+    line-height: 1;
+    font-variant-numeric: lining-nums;
+  }
+  /* The one place the dyes show up in the steps: the number of the row under the pointer. */
+  .steps li:hover .step-num {
+    background: linear-gradient(100deg, var(--silk-rose), var(--silk-gold) 55%, var(--silk-teal));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .steps h3 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: clamp(1.45rem, 1.1rem + 1vw, 2rem);
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .steps h3:lang(zh-Hans) {
+    font-family: var(--font-zh);
+    font-size: clamp(1.35rem, 1.05rem + 0.9vw, 1.8rem);
+    letter-spacing: 0.04em;
+  }
+  .steps p {
+    margin: 0;
+  }
+  /* Chinese step names are short: their column narrows and the description gets the room. */
+  @media (min-width: 52rem) {
+    .steps:lang(zh-Hans) li {
+      grid-template-columns: clamp(4.5rem, 3rem + 4vw, 7.5rem) minmax(0, 0.8fr) minmax(0, 1.6fr);
     }
   }
-  .card-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-  .icon {
-    width: 2.4rem;
-    height: 2.4rem;
-  }
-  .num {
-    color: var(--rouge);
-    font-family: var(--font-en);
-    font-style: italic;
-    font-size: 0.95rem;
-  }
-  .card h3 {
-    margin: 1.1rem 0 0.5rem;
-    font-size: 1.25em;
-    font-weight: 400;
-  }
-  .card p {
-    margin: 0;
-    color: var(--ink-soft);
-    font-size: 0.95em;
-    line-height: 1.7;
+  .steps p:lang(zh-Hans) {
+    max-width: 30em;
+    line-height: 1.85;
   }
 
-  /* ---------- Latest ---------- */
-  .posts {
+  /* ---------- The demo video, and the table of what each stage hands over ---------- */
+  /* The lead on the left and the video's pause button on its right, on the lead's last line,
+     just above the video; then the video, the table and the notes across the whole width. */
+  .demo-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 2rem;
+    margin-top: calc(var(--lead) * 0.6);
+  }
+  .demo-body > :not(.demo-lead, .motion-toggle) {
+    grid-column: 1 / -1;
+  }
+  .demo-lead {
+    max-width: 32em;
+    margin: 0;
+    font-size: 1.3125rem;
+    line-height: 1.65;
+  }
+  .demo-lead:lang(zh-Hans) {
+    max-width: 38em;
+    font-size: 1.1875rem;
+    line-height: 1.85;
+  }
+  .demo-body > .motion-toggle {
+    align-self: last baseline;
+  }
+  .demo-body > .frame {
+    margin-top: calc(var(--lead) * 0.6);
+  }
+  .frame {
+    position: relative;
+    overflow: hidden;
+    background: #060a16;
+    border-radius: 14px;
+    box-shadow: 0 40px 90px -44px rgb(0 0 0 / 0.85);
+  }
+  /* The hairline round the video, drawn over it. */
+  .frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--hairline);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .frame video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+  /* The table: a header row, then one row per stage, hairlines between. Each row is a grid
+     of the stage's name and its three cells; the header row uses the same grid. */
+  .roles-head,
+  .roles li {
+    --name: clamp(9rem, 5rem + 6vw, 13rem);
+    display: grid;
+    grid-template-columns: var(--name) minmax(0, 1fr);
+    column-gap: clamp(1.25rem, 3vw, 3rem);
+  }
+  .roles-head .cells,
+  .roles dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: clamp(1.25rem, 3vw, 3rem);
+  }
+  .roles-head {
+    margin-top: clamp(2.5rem, 1.5rem + 2vw, 3.5rem);
+    padding-bottom: 0.9rem;
+    color: var(--ink-faint);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+  .roles {
     margin: 0;
     padding: 0;
     list-style: none;
+    border-bottom: 1px solid var(--hairline);
   }
-  .posts li + li {
-    border-top: 1px solid color-mix(in srgb, var(--thread) 35%, transparent);
+  .roles li {
+    --pad: clamp(1.2rem, 0.9rem + 0.8vw, 1.6rem);
+    position: relative;
+    align-items: baseline;
+    padding-block: var(--pad);
+  }
+  /* A hairline above each row. */
+  .roles li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--hairline);
+  }
+  /* The row the video is on: a short upright line in the silk's dyes, just outside the left edge
+     of the text, beside the stage's name (so it cannot be read as the line under the row above). */
+  .roles li::after {
+    content: '';
+    position: absolute;
+    top: calc(var(--pad) + 0.15rem);
+    left: calc(-1 * clamp(0.75rem, 1.7vw, 1.5rem));
+    width: 2px;
+    height: 1.9rem;
+    border-radius: 1px;
+    background: linear-gradient(var(--silk-rose), var(--silk-gold) 50%, var(--silk-teal));
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .linked li.on::after {
+    opacity: 1;
+  }
+  .stage {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: clamp(1.45rem, 1.2rem + 0.5vw, 1.7rem);
+    font-weight: 400;
+    line-height: 1.25;
+  }
+  .stage:lang(zh-Hans) {
+    font-family: var(--font-zh);
+    font-size: clamp(1.3rem, 1.1rem + 0.45vw, 1.5rem);
+    letter-spacing: 0.04em;
+  }
+  /* The number carries the silk's dyes under its colour: they show once the colour goes
+     transparent (the current row, or the row under the pointer), so the change can fade. */
+  .stage-num {
+    margin-right: 0.7rem;
+    color: var(--ink-faint);
+    background: linear-gradient(100deg, var(--silk-rose), var(--silk-gold) 55%, var(--silk-teal));
+    -webkit-background-clip: text;
+    background-clip: text;
+    font-family: var(--font-en);
+    font-style: italic;
+    font-variant-numeric: lining-nums;
+    letter-spacing: 0;
+  }
+  .roles dl {
+    margin: 0;
+  }
+  /* The cells: a step under the body text (18px, Chinese 17px), never under 16px. */
+  .roles dd {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.6;
+  }
+  .roles dd:lang(zh-Hans) {
+    font-size: 1.0625rem;
+    line-height: 1.8;
+  }
+  .roles dt {
+    color: var(--ink-faint);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+  .roles .dt-short {
+    display: none;
+  }
+  /* Side by side, the header row names the columns, so each cell's own label is for screen readers. */
+  @media (min-width: 52rem) {
+    .roles dt {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+  /* Following the video: the other four rows step back one shade (still well above 4.5:1); the
+     current one comes up to the brightest ink, its number in the dyes, the short line beside it.
+     The row under the pointer brightens the same way, so it reads as something to click. */
+  .roles li,
+  .stage,
+  .stage-num {
+    transition: color 0.2s ease;
+  }
+  .linked li {
+    cursor: pointer;
+    color: #a3a8c0;
+  }
+  .linked .stage {
+    color: #bfc3d6;
+  }
+  .linked li.on,
+  .linked li.on .stage,
+  .linked li:hover,
+  .linked li:hover .stage {
+    color: var(--ink);
+  }
+  .linked li.on .stage-num,
+  .linked li:hover .stage-num {
+    color: transparent;
+  }
+  /* The buttons are made by the script, so they carry no scoped-style attribute: :global. */
+  .roles :global(.stage-go) {
+    display: inline;
+    margin: 0;
+    padding: 0.15rem 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-align: start;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .roles :global(.stage-go:hover) {
+    color: var(--ink);
+  }
+  .roles :global(.stage-go:focus-visible) {
+    outline: 2px solid var(--rouge);
+    outline-offset: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .roles li,
+    .roles li::after,
+    .stage,
+    .stage-num {
+      transition: none;
+    }
+  }
+
+  /* Under the table: the note on export work in body text, the disclaimer a step smaller. */
+  .notes {
+    margin-top: 2rem;
+  }
+  .notes p {
+    margin: 0;
+  }
+  .notes .aside {
+    margin-top: 0.6rem;
+    color: var(--ink-faint);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+  .demo .motion-toggle {
+    min-height: 2.5rem;
+    padding: 0.4rem 1.1rem;
+    color: var(--ink-soft);
+    background: transparent;
+    border-color: rgb(243 240 234 / 0.28);
+    font-size: 0.9rem;
+  }
+
+  /* ---------- Three things not handed to AI: open columns, no order ---------- */
+  /* After the fullest scene, room to breathe: a wide gap before it, three short texts. */
+  .limits-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: clamp(2rem, 5vw, 5.5rem);
+    row-gap: 2.75rem;
+    margin: calc(var(--lead) * 1.2) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .limits-list li {
+    padding-top: 1.6rem;
+    background: linear-gradient(rgb(243 240 234 / 0.38), rgb(243 240 234 / 0.38)) 0 0 / 2.75rem 1px no-repeat;
+  }
+  .limits-list p {
+    margin-top: 0.85rem;
+  }
+
+  /* ---------- Now: the line on the left, two paragraphs on the right ---------- */
+  /* Before the three limits and before the name, more room: the thread swings across the page there. */
+  .limits,
+  .name {
+    --before: min(15rem, max(var(--act) * 1.5, 13rem));
+    padding-top: var(--before);
+  }
+  .now {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    column-gap: clamp(2rem, 6vw, 6.5rem);
+    align-items: start;
+  }
+  .now .display {
+    max-width: 11em;
+  }
+  .now .display:lang(zh-Hans) {
+    max-width: none;
+  }
+  .prose {
+    padding-top: 0.5rem;
+  }
+  .prose p {
+    margin: 0;
+  }
+  .prose p + p {
+    margin-top: 1.1em;
+  }
+
+  /* ---------- Latest: a plain list, shown once there is something in it ---------- */
+  .posts {
+    max-width: 56rem;
+    margin: var(--lead) 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--hairline);
   }
   .posts a {
     display: block;
-    padding: 0.9rem 0;
-    text-decoration: none;
+    padding-block: 1.25rem;
     color: inherit;
-  }
-  .post-meta {
-    display: block;
-    color: var(--ink-soft);
-    font-size: 0.8em;
+    text-decoration: none;
+    border-bottom: 1px solid var(--hairline);
   }
   .post-title {
     display: block;
-    margin-top: 0.2rem;
-    font-size: 1.1em;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: clamp(1.3rem, 1.1rem + 0.6vw, 1.6rem);
+    line-height: 1.3;
+  }
+  .post-title:lang(zh-Hans) {
+    font-family: var(--font-zh);
+  }
+  .post-meta {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--ink-faint);
+    font-size: 0.9rem;
   }
   .posts a:hover .post-title {
     color: var(--rouge);
   }
-  .empty {
-    margin: 0;
-    color: var(--ink-soft);
-  }
-  .empty::before {
-    content: '';
-    display: inline-block;
-    width: 0.5em;
-    height: 0.5em;
-    margin-right: 0.6em;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--silk-rose), var(--silk-gold));
-    vertical-align: 0.1em;
-  }
 
-  /* ---------- The name, as the page's closing note ---------- */
-  .coda {
-    border-top: 1px solid color-mix(in srgb, var(--thread) 30%, transparent);
-    margin-top: clamp(1.5rem, 4vw, 3rem);
+  /* ---------- The name: the page's last and largest scene ---------- */
+  .name {
+    max-width: none;
   }
-  /* The owner's own lines about the name, kept as they were written. */
-  .motto {
-    margin: 0;
-    font-size: 1.15em;
-    line-height: 1.8;
-  }
-
-  /* ---------- The name's journey: four stops on one rouge thread ---------- */
-  .stops {
+  .name-head {
     position: relative;
+    padding-top: clamp(1rem, 3vw, 3rem);
+  }
+  /* The silk-ribbon painting, full bleed behind the motto, fading into the night above and below. */
+  .art {
+    position: absolute;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .art img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .band {
+    top: calc(-1 * var(--before));
+    bottom: -4rem;
+    left: calc(-1 * var(--gutter));
+    right: calc(-1 * var(--gutter));
+    -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 62%, transparent);
+    mask-image: linear-gradient(transparent, #000 30%, #000 62%, transparent);
+  }
+  .band img {
+    opacity: 0.5;
+    object-position: 50% 40%;
+  }
+  .motto {
+    /* Never edge to edge: the thread passes beside it. */
+    max-width: min(22em, 100% - 2 * clamp(1.5rem, 8vw, 6rem));
+    margin: 0 auto;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: clamp(1.6rem, 0.95rem + 2.3vw, 2.85rem);
+    line-height: 1.32;
+    letter-spacing: -0.01em;
+    text-align: center;
+    text-shadow:
+      0 0 18px rgb(7 11 26 / 0.9),
+      0 2px 40px rgb(7 11 26 / 0.8);
+  }
+  .motto:lang(zh-Hans) {
+    max-width: min(21em, 100% - 2 * clamp(1.5rem, 8vw, 6rem));
+    font-family: var(--font-zh);
+    font-size: clamp(1.35rem, 0.95rem + 1.7vw, 2.4rem);
+    line-height: 1.65;
+    letter-spacing: 0.03em;
+  }
+  .motto .sentence + .sentence {
+    margin-top: 0.3em;
+  }
+  /* A soft dark pool right behind the words, so the brightest ribbons never run through the
+     letters; the ribbons either side keep their full light. */
+  .motto {
+    position: relative;
+  }
+  .motto::before {
+    content: '';
+    position: absolute;
+    inset: -1.5em -2.5em;
+    z-index: -1;
+    background: radial-gradient(closest-side, rgb(7 11 26 / 0.5), rgb(7 11 26 / 0.3) 55%, rgb(7 11 26 / 0));
+    pointer-events: none;
+  }
+
+  /* Four words on the thread, growing toward serico. Each column is as wide as its own words
+     and the group is centred. Each column is a subgrid of three rows
+     (word, language, meaning), so the words share one baseline and the small lines below
+     them line up across the row. */
+  .stops {
+    --rows: 3;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    column-gap: 1.25rem;
-    margin: 3rem 0 0;
+    --gap-x: clamp(2rem, -3.5rem + 9vw, 7rem);
+    grid-template-columns: repeat(4, auto);
+    grid-template-rows: auto auto auto;
+    justify-content: center; /* centred on the page's centre line, the gaps all equal */
+    column-gap: var(--gap-x);
+    max-width: 68rem;
+    margin: clamp(4.5rem, 3rem + 5vw, 7.5rem) auto 0;
     padding: 0;
     list-style: none;
   }
   .stops li {
     position: relative;
-    padding-top: 1.5rem;
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    align-items: start;
+    padding-top: clamp(2.25rem, 1.75rem + 1.5vw, 3.25rem);
   }
-  /* A knot at each stop, and the thread running on to the next one. */
-  .stops li::before {
+  .stops li:nth-child(1) {
+    --w: clamp(2.5rem, 1.7rem + 2.3vw, 3.9rem);
+    --dye: var(--silk-rose);
+  }
+  .stops li:nth-child(2) {
+    --w: clamp(2.75rem, 1.75rem + 2.8vw, 4.5rem);
+    --dye: var(--silk-gold);
+  }
+  .stops li:nth-child(3) {
+    --w: clamp(3rem, 1.8rem + 3.4vw, 5.1rem);
+    --dye: var(--silk-teal);
+  }
+  .stops li:nth-child(4) {
+    --w: clamp(3.4rem, 1.85rem + 4.5vw, 6.4rem);
+  }
+  /* A knot where the thread touches each word. Above the thread, so the thread passes behind it. */
+  .knot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    width: 11px;
+    height: 11px;
+    translate: -50% -50%;
+    background: var(--ground);
+    border: 1.5px solid var(--dye);
+    border-radius: 50%;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--dye) 60%, transparent);
+  }
+  /* Without the script, a plain line joins the knots; once the thread is drawn it takes over. */
+  .stops li:not(:last-child)::after {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--rouge);
+    width: calc(100% + var(--gap-x, 2rem));
+    border-top: 1px solid color-mix(in srgb, var(--silk-gold) 55%, transparent);
   }
-  .stops li:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: calc(100% + 1.25rem);
-    border-top: 1px solid var(--rouge);
+  .has-silk .stops li::after {
+    display: none;
   }
-  .stops span {
-    display: block;
+  .stops li:last-child .knot {
+    width: 15px;
+    height: 15px;
+    background: linear-gradient(135deg, var(--silk-rose), var(--silk-gold) 50%, var(--silk-teal));
+    border: 0;
+    box-shadow: 0 0 18px rgb(234 145 168 / 0.7);
   }
   .word {
-    font-size: 1.7em;
+    align-self: baseline;
+    justify-self: start;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: var(--w);
     font-style: italic;
-    line-height: 1.25;
+    line-height: 1;
+    letter-spacing: -0.02em;
   }
   .word:lang(zh-Hans) {
+    font-family: var(--font-zh);
     font-style: normal;
+    letter-spacing: 0;
+  }
+  /* serico in the dyes of the silk, answering the wordmark at the top of the page. */
+  .stops li:last-child .word {
+    padding-right: 0.08em;
+    background: linear-gradient(100deg, var(--ink) 8%, var(--silk-rose) 42%, var(--silk-gold) 72%, var(--silk-teal));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
   .from {
-    margin-top: 0.35rem;
+    margin-top: 1.1rem;
     color: var(--ink-soft);
-    font-size: 0.8em;
+    font-size: 0.95rem;
     line-height: 1.5;
   }
   .means {
-    font-size: 0.8em;
+    max-width: 13em;
+    margin-top: 0.3rem;
+    color: #a4a9c2; /* a step lighter than --ink-faint: it can sit over the dunes */
+    font-size: 0.95rem;
     line-height: 1.6;
   }
 
-  /* ---------- Where to find me ---------- */
+  /* ---------- The ending: dunes and the far city; where to find me; the colophon ---------- */
+  /* The painting is dark sky above, the city and the dawn low on the right. "Find me" sits in
+     the dark sky at the top left, the colophon at the foot. */
+  .ending {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* the colophon at the foot, with or without "Find me" above */
+    min-height: clamp(30rem, 40vw, 46rem);
+    padding: clamp(5rem, 3rem + 5vw, 8rem) var(--gutter) 1.5rem;
+    color: var(--ink-soft);
+  }
+  /* The painting ends above the colophon, so the small print sits on plain night. */
+  .ending .art {
+    inset: 0 0 var(--foot, 4.5rem);
+    /* The painting's edges are not quite the night ground: all four sides melt into it. */
+    -webkit-mask-image:
+      linear-gradient(to right, transparent, #000 7%, #000 84%, transparent),
+      linear-gradient(transparent, #000 25%, #000 82%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to right, transparent, #000 7%, #000 84%, transparent),
+      linear-gradient(transparent, #000 25%, #000 82%, transparent);
+    mask-composite: intersect;
+  }
+  .ending .art img {
+    object-position: 50% 100%;
+  }
+  /* Darker toward the bottom, so the small type stays readable over the dunes. */
+  .ending .art::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(rgb(7 11 26 / 0) 70%, rgb(7 11 26 / 0.4));
+  }
   .find {
-    margin: 0;
+    margin-bottom: auto;
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem 1.25rem;
+    align-items: baseline;
+    text-shadow: 0 0 16px rgb(7 11 26 / 0.9);
   }
-  .where {
+  .find h2 {
+    margin: 0;
     color: var(--ink-soft);
+    font: inherit;
+    font-size: 1rem;
   }
-
-  .foot {
-    padding: 2rem var(--gutter) 3rem;
+  .find a {
+    display: inline-block;
+    padding-block: 0.35rem;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: clamp(1.35rem, 1.05rem + 0.9vw, 1.8rem);
+    font-style: italic;
+  }
+  .colophon {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 2rem;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 4rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--hairline);
     color: var(--ink-soft);
-    font-size: 0.85rem;
-    line-height: 1.7;
+    font-size: 0.875rem;
+    line-height: 1.6;
   }
-  .foot p {
+  .colophon p {
     margin: 0;
   }
+  .sign {
+    margin-right: 0.35rem;
+    color: var(--ink);
+    font-family: var(--font-en);
+    font-size: 1.2rem;
+    font-style: italic;
+  }
+  .foot-links {
+    display: flex;
+    gap: 0.25rem 1.5rem;
+  }
+  .foot-links a {
+    display: inline-block;
+    padding-block: 0.6rem;
+    font-family: inherit;
+    text-decoration-color: rgb(243 240 234 / 0.3);
+  }
+  .foot-links a:lang(zh-Hans) {
+    font-family: var(--sans-zh);
+  }
 
-  /* ---------- Narrower screens: the section name moves above its text ---------- */
+  /* ---------- Narrower screens ---------- */
   @media (max-width: 60rem) {
-    .row {
+    .now,
+    .signs {
       grid-template-columns: minmax(0, 1fr);
-      row-gap: 1rem;
+      row-gap: calc(var(--lead) * 0.75);
     }
-    .col {
-      max-width: 34em;
+    .signs-list {
+      padding-top: 0;
+    }
+    .signs .display {
+      max-width: 16em;
+    }
+    .limits-list {
+      grid-template-columns: minmax(0, 1fr);
+      max-width: 38em;
+    }
+    .prose {
+      padding-top: 0;
+    }
+    .now .display {
+      max-width: none;
     }
   }
-  /* ---------- Phones: the thread runs downward ---------- */
-  @media (max-width: 46rem) {
-    .figures,
-    .skills {
-      grid-template-columns: minmax(0, 1fr);
+  @media (max-width: 52rem) {
+    /* The number stays on the left; the name and its line stack beside it. */
+    .steps li {
+      grid-template-columns: 3.25rem minmax(0, 1fr);
+      row-gap: 0.5rem;
     }
+    .steps p {
+      grid-column: 2;
+    }
+    .step-num {
+      font-size: 1.75rem;
+    }
+  }
+  /* Tablets and phones: the four words run down a vertical thread. (Side by side they would
+     squeeze the first word's long note into a sliver.) */
+  @media (max-width: 51.99rem) {
     .stops {
       grid-template-columns: minmax(0, 1fr);
-      row-gap: 1.5rem;
-      margin-top: 2.25rem;
+      grid-template-rows: none;
+      row-gap: 2.25rem;
+      padding-left: 2rem;
     }
     .stops li {
-      padding: 0 0 0 1.75rem;
+      grid-row: auto;
+      grid-template-rows: none;
+      padding-top: 0;
     }
-    .stops li::before {
-      top: 0.9rem;
+    .knot {
+      top: calc(var(--w) * 0.55);
+      left: -2rem;
     }
     .stops li:not(:last-child)::after {
-      top: calc(0.9rem + 3px);
+      top: calc(var(--w) * 0.55);
+      left: -2rem;
       width: 0;
-      height: calc(100% + 1.5rem);
+      height: calc(100% + 2.25rem);
       border-top: 0;
-      border-left: 1px solid var(--rouge);
+      border-left: 1px solid color-mix(in srgb, var(--silk-gold) 55%, transparent);
+    }
+    .stops li:nth-child(1) {
+      --w: 2.5rem;
+    }
+    .stops li:nth-child(2) {
+      --w: 2.85rem;
+    }
+    .stops li:nth-child(3) {
+      --w: 3.2rem;
+    }
+    .stops li:nth-child(4) {
+      --w: 3.75rem;
+    }
+    .from {
+      margin-top: 0.6rem;
+    }
+    /* The table: one stage after another, each with its three labelled lines. */
+    .roles-head {
+      display: none;
+    }
+    .roles {
+      margin-top: 2rem;
+    }
+    .roles li {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 0.9rem;
+      padding-block: 1.4rem 1.5rem;
+    }
+    /* Each line with a one-word label in a narrow column on its left. */
+    .roles dl {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 0.55rem;
+    }
+    .roles dl div {
+      display: grid;
+      grid-template-columns: 4.75rem minmax(0, 1fr);
+      column-gap: 0.75rem;
+      align-items: baseline;
+    }
+    .roles:lang(zh-Hans) dl div {
+      grid-template-columns: 2.75rem minmax(0, 1fr);
+    }
+    .roles .dt-long {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .roles .dt-short {
+      display: inline;
+    }
+    /* While the five stages are read, the video stays at the top of the screen, on a strip of
+       night so the lines scrolling under it never show through; it lets go at the end of the
+       section. (The pause button below it scrolls on.) */
+    .demo-body > .frame {
+      position: sticky;
+      top: 0.75rem;
+      z-index: 2;
+      overflow: visible;
+    }
+    .demo-body > .frame::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      top: -0.75rem;
+      bottom: -0.5rem;
+      left: calc(-1 * var(--gutter));
+      right: calc(-1 * var(--gutter));
+      background: var(--ground);
+    }
+    .frame video {
+      border-radius: 14px;
+    }
+    /* The pause button goes right under the video, on its left edge (the right margin is where
+       the silk thread comes down). */
+    .demo-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .demo-body > * {
+      order: 3;
+    }
+    .demo-body > .demo-lead {
+      order: 0;
+    }
+    .demo-body > .frame {
+      order: 1;
+    }
+    .demo-body > .motion-toggle {
+      order: 2;
+      justify-self: start;
+      align-self: start;
+      margin-top: 0.75rem;
+    }
+    /* Going back up the stages from the keyboard, the browser brings each one to the top of the
+       screen: below the video that sticks there (its top, its 16:9 frame across the width
+       between the gutters, the strip of night under it), not behind it. */
+    .roles li,
+    .roles :global(.stage-go) {
+      scroll-margin-top: calc(0.75rem + (100vw - 2 * var(--gutter)) * 9 / 16 + 1.5rem);
+    }
+  }
+  /* Phones. */
+  @media (max-width: 47.99rem) {
+    .ending {
+      --foot: 7.5rem;
+      min-height: max(32rem, 125vw);
     }
   }
 </style>

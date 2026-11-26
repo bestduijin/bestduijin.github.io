@@ -1,20 +1,21 @@
 /*
-  Colours are named after traditional silk dyes:
-  月白 moon white (the ground), 鸦青 raven blue-black (the ink), 胭脂 rouge (one thread).
+  One night from top to bottom. Every colour below the opening scene comes from its painting:
+  the night sky (the ground), starlight (the ink), mist (body text) and the three dyes of the
+  silk ribbons, rose, gold and teal. The dyes are kept for the silk thread, the step numbers
+  on hover and the last word, serico. The opening scene sets its own colours (Page.astro .hero).
 */
 :root {
-  color-scheme: light dark;
-  --ground: #dcecf0;
-  --ink: #1d2a31;
-  --ink-soft: #4b5f69;
-  --thread: #36525f;
-  --rouge: #9d2933;
-  /* The three colours of the silk ribbons in the opening painting, used as accents below it. */
-  --silk-rose: #d36a86;
-  --silk-gold: #c3923f;
-  --silk-teal: #379b90;
-  --card-fill: #e9f3f6;
-  --card-glow: rgb(157 41 51 / 0.4);
+  color-scheme: dark;
+  --ground: #070b1a;
+  --ink: #f3f0ea;
+  --ink-soft: #cdd0e0; /* body text: a touch brighter than mist, still a step under --ink */
+  --ink-faint: #8b91ad;
+  --hairline: rgb(243 240 234 / 0.14);
+  --thread: #c9c6d8;
+  --rouge: #ea91a8;
+  --silk-rose: #ea91a8;
+  --silk-gold: #e8c488;
+  --silk-teal: #74d4c9;
   --gutter: clamp(1.25rem, 6vw, 6.5rem);
 
   /* Chinese pages: Bodoni Moda supplies letters and digits only, the Song face
@@ -23,21 +24,14 @@
     'Source Han Serif CN', 'Noto Serif SC', STSong, SimSun, serif;
   --font-en: 'Bodoni Moda', 'Bodoni Moda Punct', 'Bodoni 72', Didot, 'Bodoni MT', Georgia,
     'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Noto Serif SC', STSong, SimSun, serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ground: #131b21;
-    --ink: #d6ecf0;
-    --ink-soft: #8fa6b0;
-    --thread: #9dbac4;
-    --rouge: #e58b94;
-    --silk-rose: #ff9fb6;
-    --silk-gold: #f2c77f;
-    --silk-teal: #7fe0d4;
-    --card-fill: #18222a;
-    --card-glow: rgb(255 159 182 / 0.35);
-  }
+  /* Traditional Chinese, used only by the language note for Traditional readers. */
+  --font-zh-hant: 'Bodoni Moda', 'Songti TC', 'Noto Serif CJK TC', 'Source Han Serif TC',
+    'Noto Serif TC', PMingLiU, MingLiU, serif;
+  /* Body text and small type below the opening scene. Jost, like Bodoni Moda, is split into
+     letters-and-digits and punctuation (Base.astro), so Chinese keeps its own punctuation. */
+  --sans-en: 'Jost', 'Jost Punct', 'Avenir Next', Futura, 'Helvetica Neue', Arial, sans-serif;
+  --sans-zh: 'Jost', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Source Han Sans SC',
+    'Noto Sans SC', 'Microsoft YaHei', sans-serif;
 }
 
 *,
@@ -56,22 +50,35 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
+/* In-page links (the three numbers at the top, "back to top") glide there, unless the visitor
+   asks the system for reduced motion: then they jump. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   margin: 0;
   font-size: clamp(1.0625rem, 0.9rem + 0.55vw, 1.3125rem);
   line-height: 2;
 }
 
-/* Bodoni runs small beside a Song face and needs less leading on its own. */
-:lang(en) {
+/* Bodoni runs small beside a Song face and needs less leading on its own.
+   Set where a language starts (the page, or an element with its own `lang`) and inherited
+   from there, so a section can choose another family for everything inside it. */
+[lang]:lang(en) {
   font-family: var(--font-en);
 }
 html:lang(en) body {
   font-size: clamp(1.1875rem, 1rem + 0.6vw, 1.4375rem);
   line-height: 1.6;
 }
-:lang(zh-Hans) {
+[lang]:lang(zh-Hans) {
   font-family: var(--font-zh);
+}
+[lang]:lang(zh-Hant) {
+  font-family: var(--font-zh-hant);
 }
 
 a {
@@ -93,4 +100,17 @@ a:hover {
 ::selection {
   background: var(--rouge);
   color: var(--ground);
+}
+
+/* Read aloud, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
