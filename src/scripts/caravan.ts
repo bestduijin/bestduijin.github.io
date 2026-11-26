@@ -12,9 +12,8 @@
 // camel's pace. Until its pictures have loaded, or where the road would run under the text, it stays
 // off and the painted caravan is left as it is (`active` is false).
 //
-// The data (src/scripts/caravan/*.json) and pictures (public/hero/caravan/) are made by the scripts in
-// B003/个人主页_插画/驼队动画/ (make_patch.py, make_route.py, make_bodies.py): change the paintings,
-// re-run them.
+// The data (src/scripts/caravan/*.json) and pictures (public/hero/caravan/) are made by scripts kept
+// outside this repository: change the paintings, re-make them.
 
 import ROUTE from './caravan/route.json';
 import BODIES from './caravan/bodies.json';

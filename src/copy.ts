@@ -91,10 +91,8 @@ export const copy: Record<Lang, Copy> = {
       { value: '6 套', tag: '流程', to: 'demo' },
     ],
     seek: '，在视频里看这一步',
-    // Below the opening scene: wording from 个人主页_改版/agy/文案_v3.md (the 推荐 versions), 2026-11-26;
-    // the bodies of the situations, the four steps and the three limits from 文案_v3_精简.md (with the
-    // owner's own wording for situation 2 and step 4),
-    // except the approach's heading (kept from v2) and the bridge under the table (the owner's wording).
+    // Below the opening scene: the wording settled on 2026-11-26 (with the owner's own wording for
+    // situation 2, step 4 and the bridge under the table).
     signs: {
       heading: '生意做久了，拖慢人的往往不是大事。',
       items: [

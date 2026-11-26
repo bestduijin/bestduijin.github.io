@@ -9,10 +9,10 @@ interface Props {
 const { lang } = Astro.props;
 const c = copy[lang];
 
-// The demo loop below "What I do": a 15-second automation dashboard, rendered from
-// B003/讲解视频/主页封面_自动化大屏.
+// The demo loop below "What I do": a 15-second automation dashboard, rendered from code kept
+// outside this repository.
 const demo = (ext: 'mp4' | 'jpg') => `/cover/cover_${lang}_h.${ext}`;
-// The opening scene: a painted illustration (B003/个人主页_插画), with light that moves over it (src/scripts/sky.ts).
+// The opening scene: a painted illustration (made outside this repository), with light that moves over it (src/scripts/sky.ts).
 // `words`: what the button shows (pause, play); `labels`: its full name for screen readers,
 // which always contains the words shown.
 const toggle = (labels: [string, string], words: [string, string] = [c.motion.pause, c.motion.play]) => ({
@@ -80,8 +80,8 @@ const para = (s: string): [string, string] => {
   return m ? [m[1] + ' ', m[2]] : ['', s];
 };
 
-// The demo video's five stages last three seconds each (CYCLE = 15, STEP = 3 in
-// B003/讲解视频/主页封面_自动化大屏/ui/screen.html), in the order of the table under it.
+// The demo video's five stages last three seconds each (15 seconds in all, as the video was
+// rendered), in the order of the table under it.
 const STAGE_SECONDS = 3;
 ---
 
