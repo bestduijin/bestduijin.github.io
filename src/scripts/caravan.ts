@@ -59,9 +59,10 @@ const STANCE = [0.05, 0.57, 0.1, 0.6, 0.02, 0.54]; // where in its stride each p
 const WARM = '255, 172, 92';
 const GOLD = '255, 206, 140';
 
-// The light each caravan leaves on the road: where they tread, it lights up. The sand under the
-// caravan is brightest; behind it a band of light follows the road they have walked (round the
-// hairpins too: both arms have been walked), dimming slowly back to the night over tens of seconds.
+// The light each caravan leaves on the road: where they tread, it lights up. The road and the sand
+// under the caravan are brightest — a light that walks with them (see POOL and HOT below); behind
+// them it cools over two or three lengths to a faint band along the road they have walked (round the
+// hairpins too: both arms have been walked), which sinks back to the night over tens of seconds.
 // It lights the painting itself: what it adds is the sand under it, tinted warm, so the sand's own
 // ripples and ridges show brighter — lit sand, not a yellow haze laid over it. Drawn before the
 // dune in front, so that dune hides it where it hides the road (the near end of that dune, which is
@@ -78,7 +79,23 @@ const BEAM = {
   grand: { r: 50, gain: 3.0, fade: 40 },
 };
 const FLAT = 0.4; // the band lies on the ground: this much as tall as wide (flat: it must not spill onto the next arm of a hairpin)
-const TINT = '255, 152, 72'; // deep amber gold, as the lantern-lit ridges in the painting
+// The pool that goes with the caravan — what is seen first, at the page's own size. Under the camels,
+// and for a few seconds of road behind the last one, the band is at its fullest, and a second, fainter
+// light falls on the slope beside the road (most of it on the near side, which faces us): a pool of
+// light that walks with them. Behind it the light draws in to the road again and sinks away as the
+// band above. Fainter on the slope than on the road, on purpose: at full strength a lit slope is a pale slab.
+//   tall: the pool's height for its width (the band's is FLAT);  down: how far below the road its
+//   centre lies, in half-heights;  strength: of full light;  lasts: seconds behind the last camel
+//   until it is gone
+const POOL = { tall: 0.75, down: 0.35, strength: 0.65, lasts: 6 };
+// ... and the road itself lights up where they tread, and cools again behind them. The road is
+// nearly as bright as its own colour goes (the light above adds almost nothing to it), so in the lit
+// sand the road and a few px to either side are drawn toward lantern gold: `by` this far at the
+// middle of the road, over `r` px to either side at full size (picture px). The gold of the painted
+// lanterns' own glow on the ridge; it can only ever reach that colour, never white.
+const HOT = { by: 1, r: 7 };
+const HOT_GOLD = '255, 204, 128';
+const TINT = '255, 150, 36'; // deep amber gold, as the lantern-lit ridges in the painting (little blue: on the night's violet sand more of it turns the lit slope pink)
 const CAP = 200; // no lit pixel goes above this brightness (luma), and no channel clips: lit gold, never white
 
 // Catmull–Rom spline through [x, y, visibility] points, sampled evenly by length.
@@ -185,7 +202,7 @@ export function createCaravan() {
     if (lit || !on || kind !== 'wide' || !art || !art.complete || !art.naturalWidth || /tall/.test(picture())) return lit;
     const pts = route.wide.pts;
     const x0 = Math.max(0, Math.min(...pts.map((p) => p[0])) - 120), x1 = Math.min(art.naturalWidth, Math.max(...pts.map((p) => p[0])) + 120);
-    const y0 = Math.max(0, Math.min(...pts.map((p) => p[1])) - 50), y1 = Math.min(art.naturalHeight, Math.max(...pts.map((p) => p[1])) + 50);
+    const y0 = Math.max(0, Math.min(...pts.map((p) => p[1])) - 50), y1 = Math.min(art.naturalHeight, Math.max(...pts.map((p) => p[1])) + 70);
     const c = document.createElement('canvas');
     c.width = Math.round(x1 - x0);
     c.height = Math.round(y1 - y0);
@@ -236,7 +253,29 @@ export function createCaravan() {
     const out = document.createElement('canvas');
     out.width = c.width;
     out.height = c.height;
-    out.getContext('2d')!.drawImage(c, 0, 0);
+    const og = out.getContext('2d')!;
+    og.drawImage(c, 0, 0);
+    // the lit road (see HOT): soft dots strung along it add up to one even line on a canvas of their
+    // own (reusing `c`) — only how solid it is; it is then filled with the gold, and laid over the lit
+    // sand. (Dots of the gold itself would add up past it, to white, where they overlap.)
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+    g.clearRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'lighter';
+    const ds = road.total / (road.n - 1);
+    for (let i = 0; i < road.n; i += 2) {
+      const r = Math.max(2, HOT.r * road.scale[i]);
+      // (a dot's cross-section is about 0.62·r: this much of each makes the line solid over its middle
+      // third and soft outside it)
+      g.globalAlpha = Math.min(1, (2 * ds) / (0.4 * r));
+      g.drawImage(pool, road.pts[i][0] - x0 - r, road.pts[i][1] - y0 - r, 2 * r, 2 * r);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = `rgb(${HOT_GOLD})`;
+    g.fillRect(0, 0, c.width, c.height);
+    og.globalAlpha = HOT.by;
+    og.drawImage(c, 0, 0);
     lit = { c: out, x: x0, y: y0 };
     litOf = picture();
     return lit;
@@ -435,9 +474,10 @@ export function createCaravan() {
     const whole = start * end;
     if (whole < 0.01 || head <= 0) return;
     const dsImg = road.total / (road.n - 1);
-    // how bright the road is, `behind` seconds after the last camel passed: brightest under them and
-    // two or three lengths behind, then sinking smoothly into dark gold and out over B.fade (no step)
-    const left = (behind: number) => (behind <= 0 ? 1 : (1 - smooth(B.fade * 0.2, B.fade, behind)) * (0.62 + 0.38 * Math.exp(-behind / 4.6)));
+    // how bright the road is, `behind` seconds after the last camel passed: brightest under them, cooling
+    // over the two or three lengths behind (it is the caravan's own light that is seen to move), then a
+    // faint band that sinks away over B.fade (no step anywhere)
+    const left = (behind: number) => (behind <= 0 ? 1 : (1 - smooth(B.fade * 0.2, B.fade, behind)) * (0.3 + 0.7 * Math.exp(-((behind / 6) ** 2))));
     let f = at(head);
     while (f >= 0) {
       const t = lerp(road.T, f);
@@ -456,15 +496,27 @@ export function createCaravan() {
       const fromHere = c.n === 0 ? smooth(from - 1, from + 1, t) : 1;
       // the leader's own footprint fades in over its first steps, so the band starts soft under it
       const lead = smooth(0, 1.5, head - t + 0.4);
-      const I = trail * lead * vis * seen * edge * far * fromHere * whole;
+      // (where they come into sight behind the words, the light comes up with their lanterns)
+      const I = trail * lead * vis * Math.min(1, seen * 2) * edge * far * fromHere * whole;
       if (I > 0.004) {
         const [x, y] = map(p);
-        const ry = rx * FLAT;
-        // keep off the words: footprints near them fade out before they get there
-        const clear = smooth(4, 36, toWords(x - rx * 0.8, y - ry * 0.8, x + rx * 0.8, y + ry * 0.8));
+        // keep off the words: footprints fade out as they come up to them (only there: the rest of the
+        // light stays), and nothing is ever drawn over the words themselves (offTheWords)
+        const clear = (cy: number, ry: number) => smooth(2, 20, toWords(x - rx * 0.8, cy - ry * 0.8, x + rx * 0.8, cy + ry * 0.8));
         // a footprint's cross-section integrates to about 0.62·rx; spaced `step` apart they sum to I
-        const a = (I * clear * norm * step * dsImg * k) / (0.62 * rx);
+        const each = (norm * step * dsImg * k) / (0.62 * rx);
+        const ry = rx * FLAT;
+        const a = I * each * clear(y - ry * 0.1, ry);
         if (a > 0.002) prints.push({ x, y: y - ry * 0.1, rx, ry, a });
+        // the pool with the caravan, on the slope
+        // (not yet where they come over the ridge: the slope below the road there is the dark face of
+        // the dune in front, which a pool of light turns pale)
+        const pool = (behind <= 0 ? 1 : 1 - smooth(0, POOL.lasts, behind)) * smooth(road.rise + 90, road.rise + 220, f);
+        if (pool > 0.01) {
+          const py = rx * POOL.tall, cy = y + py * POOL.down;
+          const b = I * pool * POOL.strength * each * clear(cy, py);
+          if (b > 0.002) prints.push({ x, y: cy, rx, ry: py, a: b });
+        }
       }
       f -= step;
     }
@@ -518,8 +570,9 @@ export function createCaravan() {
     // ... and keep the lit sand under it
     sg.globalAlpha = 1;
     sg.globalCompositeOperation = 'source-in';
-    // (the sand that was kept reaches 120 px beyond the road to either side and 50 px above and below;
-    // no footprint is more than 64 by 28 px from it, so the sand always covers the whole mask)
+    // (the sand that was kept reaches 120 px beyond the road to either side, 50 px above it and 70 px
+    // below; no footprint reaches more than 58 px sideways, 28 px up or 58 px down from it — the pool
+    // under a grand caravan at its largest — so the sand always covers the whole mask)
     const [sx, sy] = map([sand.x, sand.y]);
     sg.drawImage(sand.c, sx, sy, sand.c.width * k, sand.c.height * k);
     // laid over the painting (and the patches), as thick as the light is strong
