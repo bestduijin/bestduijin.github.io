@@ -12,9 +12,13 @@
 import type { Caravan } from './caravan';
 
 type Pt = [number, number];
+// (Every flow runs along a ribbon. Two more used to run off the ribbons — one over the dunes from the
+// caravan to the city, one low across the open sky down to the city, just above the horizon; out
+// there their sparks read as stray streaks of light, and they were taken out.)
 type Flow = { pts: Pt[]; color: string; count: number; speed: number; size: number };
 type Layout = {
   flows: Flow[];
+  gone: number; // sparks of the flows taken out: their share of the random numbers is passed over, so the stars stay where they were
   starsBelow: number; // stars only above this line
   lanterns: Pt[];
   glow: { at: Pt; r: number };
@@ -30,9 +34,8 @@ const WIDE: Layout = {
     { pts: [[-0.02, 0.13], [0.1, 0.17], [0.22, 0.24], [0.33, 0.33], [0.45, 0.4], [0.55, 0.38], [0.62, 0.31], [0.72, 0.27], [0.8, 0.3], [0.9, 0.25], [1.02, 0.12]], color: ROSE, count: 34, speed: 0.022, size: 1.6 },
     { pts: [[-0.02, 0.06], [0.12, 0.1], [0.25, 0.18], [0.38, 0.28], [0.5, 0.3], [0.62, 0.27], [0.75, 0.2], [0.85, 0.14], [0.95, 0.1], [1.02, 0.03]], color: GOLD, count: 34, speed: 0.026, size: 1.7 },
     { pts: [[0.12, 0.12], [0.22, 0.22], [0.3, 0.35], [0.38, 0.47], [0.5, 0.44], [0.6, 0.4]], color: TEAL, count: 18, speed: 0.03, size: 1.4 },
-    { pts: [[0.55, 0.42], [0.7, 0.43], [0.82, 0.47], [0.92, 0.5]], color: GOLD, count: 12, speed: 0.04, size: 1.2 },
-    { pts: [[0.62, 0.67], [0.7, 0.645], [0.78, 0.62], [0.86, 0.58], [0.93, 0.53]], color: WARM, count: 10, speed: 0.018, size: 1.1 },
   ],
+  gone: 22,
   starsBelow: 0.45,
   lanterns: [[0.635, 0.66], [0.655, 0.657], [0.675, 0.655], [0.695, 0.652], [0.71, 0.648]],
   glow: { at: [0.93, 0.49], r: 0.09 },
@@ -44,8 +47,8 @@ const TALL: Layout = {
     { pts: [[0.55, 0.02], [0.7, 0.07], [0.85, 0.13], [0.97, 0.19], [0.9, 0.26], [0.75, 0.27], [0.6, 0.26]], color: GOLD, count: 18, speed: 0.028, size: 1.6 },
     { pts: [[-0.02, 0.25], [0.12, 0.26], [0.25, 0.29], [0.35, 0.32], [0.5, 0.3], [0.65, 0.28], [0.8, 0.3], [1.02, 0.28]], color: TEAL, count: 22, speed: 0.026, size: 1.4 },
     { pts: [[-0.02, 0.37], [0.15, 0.35], [0.3, 0.33], [0.45, 0.32], [0.6, 0.34], [0.75, 0.32], [1.02, 0.3]], color: GOLD, count: 18, speed: 0.03, size: 1.3 },
-    { pts: [[0.1, 0.44], [0.3, 0.42], [0.5, 0.41], [0.62, 0.43], [0.75, 0.41]], color: WARM, count: 10, speed: 0.03, size: 1.1 },
   ],
+  gone: 10,
   starsBelow: 0.4,
   lanterns: [[0.25, 0.488], [0.32, 0.486], [0.37, 0.484], [0.41, 0.482], [0.46, 0.48]],
   glow: { at: [0.78, 0.415], r: 0.12 },
@@ -137,6 +140,7 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement, extra
       for (let i = 0; i < f.count; i++) sparks.push({ flow, s: r(), v: f.speed * (0.6 + r() * 0.8), tw: r() * 6.28 });
     });
     if (was.length === sparks.length) sparks.forEach((sp, i) => (sp.s = was[i].s));
+    for (let i = 0; i < layout.gone * 3; i++) r();
     stars = Array.from({ length: Math.round((W * H) / 9000) }, () => ({
       p: map([r(), r() * layout.starsBelow]),
       r: 0.5 + r() * 1.1,
