@@ -85,6 +85,7 @@ npm run preview
 | 「名字」背后和页尾的画 | 换 `public/art/` 里同名的四个文件 |
 | 首屏插画、动的光、驼队、暂停按钮 | 插画换 `public/hero/` 里的图；光在 [sky.ts](src/scripts/sky.ts)；驼队在 [caravan.ts](src/scripts/caravan.ts)（换画要重跑的脚本见上面「首屏的驼队动画」）；排版、推近和暂停在 [Page.astro](src/components/Page.astro) 的 `.scene`、`.drift`、`.motion-toggle` |
 | 演示视频 | 换 `public/cover/` 里的同名文件（画面和出片脚本不在本仓库里）；表跟着视频走的逻辑在 [Page.astro](src/components/Page.astro) 末尾的脚本里 |
+| 链接分享卡片（贴到聊天和社交平台时显示的图） | 换 `public/og/` 里同名的两张 1200×630 JPEG（`serico_en.jpg` 给 `/`，`serico_zh.jpg` 给 `/zh/`，每张不超过 300 KB；生成模板不在本仓库里）；图的文字说明在 [src/copy.ts](src/copy.ts) 的 `share.alt`，标签在 [Base.astro](src/layouts/Base.astro)。 |
 | 全站配色、字体与链接样式 | [global.css](src/styles/global.css)。字体文件和页面元信息在 [Base.astro](src/layouts/Base.astro)。 |
 
 ## 交付时怎么验收

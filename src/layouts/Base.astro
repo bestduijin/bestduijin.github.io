@@ -14,6 +14,10 @@ const c = copy[lang];
 const canonical = new URL(c.path, site.url).href;
 // Open Graph wants language_TERRITORY (https://ogp.me/#optional).
 const OG_LOCALE: Record<Lang, string> = { en: 'en_US', zh: 'zh_CN' };
+// The link-preview card (1200×630 JPEG, public/og/), as an absolute URL built from the site's address.
+// Open Graph (https://ogp.me/): og:image with its type, size and alt ("if the page specifies an
+// og:image it should specify og:image:alt"); X: twitter:card summary_large_image with its image and alt.
+const shareImage = new URL(c.share.image, site.url).href;
 
 // Three Latin faces (all SIL OFL 1.1, via Fontsource, latin subset only, served from this site):
 // - Bodoni Moda, italic only, for the name Serico and its forebears (the wordmark, the sign in the
@@ -63,6 +67,15 @@ const fonts = [
     <meta property="og:url" content={canonical} />
     <meta property="og:locale" content={OG_LOCALE[lang]} />
     <meta property="og:locale:alternate" content={OG_LOCALE[lang === 'en' ? 'zh' : 'en']} />
+    <meta property="og:image" content={shareImage} />
+    <meta property="og:image:secure_url" content={shareImage} />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={c.share.alt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={shareImage} />
+    <meta name="twitter:image:alt" content={c.share.alt} />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#070b1a" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

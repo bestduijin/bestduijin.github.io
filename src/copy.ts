@@ -34,6 +34,8 @@ type Copy = {
   path: string;
   title: string;
   description: string;
+  // The link-preview card (og:image, twitter:image): a 1200×630 JPEG in public/og/, and its alt text.
+  share: { image: string; alt: string };
   other: { label: string; href: string; hreflang: string };
   // Pause buttons for the moving parts: the hero scene and the demo video.
   // The scene's button shows its own words (`hero`: pause, play); the video's shows `pause` / `play`
@@ -79,6 +81,10 @@ export const copy: Record<Lang, Copy> = {
     path: '/zh/',
     title: 'Serico',
     description: 'Serico。电商人。生意难题进，赚钱的 AI 系统出。',
+    share: {
+      image: '/og/serico_zh.jpg',
+      alt: 'Serico 字标在夜空的发光丝带下、沙漠之上，下面两行字：Serico。电商人。生意难题进，赚钱的 AI 系统出。',
+    },
     other: { label: 'English', href: '/', hreflang: 'en' },
     motion: { pause: '暂停', play: '播放', hero: ['暂停动画', '播放动画'], demo: ['暂停演示视频', '播放演示视频'] },
     // The owner's final wording (2026-11-26, second round). The second line is one in, one out:
@@ -200,6 +206,10 @@ export const copy: Record<Lang, Copy> = {
     path: '/',
     title: 'Serico',
     description: 'Serico. Ecommerce. Business problems in. Profitable AI systems out.',
+    share: {
+      image: '/og/serico_en.jpg',
+      alt: 'The Serico wordmark under glowing silk ribbons in a night sky over desert dunes, with two lines: Serico. Ecommerce. Business problems in. Profitable AI systems out.',
+    },
     other: { label: '中文', href: '/zh/', hreflang: 'zh-Hans' },
     motion: { pause: 'Pause', play: 'Play', hero: ['Pause motion', 'Play motion'], demo: ['Pause the demo video', 'Play the demo video'] },
     // The owner's final wording (2026-11-26, second round); the second line may break only after "in.".
