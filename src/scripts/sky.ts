@@ -87,17 +87,19 @@ function rng(seed: number) {
   return () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 }
 
-type Rect = [number, number, number, number];
+type Rect = number[];
 type Extras = {
   caravan?: Caravan;
   // the words on the opening scene, in canvas px (see Page.astro)
   avoid?: () => Rect[];
   // the right edge of what is seen of the canvas at the drift's widest, in canvas px
   edge?: (width: number) => number;
+  // the words again, where they are on the canvas at this moment of the drift
+  now?: () => Rect[];
 };
 
 export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement, extras: Extras = {}) {
-  const { caravan, avoid = () => [], edge } = extras;
+  const { caravan, avoid = () => [], edge, now } = extras;
   const ctx = canvas.getContext('2d')!;
   let W = 0, H = 0, dpr = 1;
   let map = (p: Pt): Pt => p;
@@ -174,6 +176,8 @@ export function startSky(canvas: HTMLCanvasElement, img: HTMLImageElement, extra
     ctx.clearRect(0, 0, W, H);
     // the caravan's ground first (patches, camels, the dune in front), in normal blending
     if (caravan) {
+      // (on the tall painting the words stand a few px from the caravan: it is told where they are now)
+      if (now && layout === TALL) caravan.words(now());
       caravan.step(dt);
       caravan.drawGround(ctx);
     }

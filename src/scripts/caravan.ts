@@ -24,15 +24,16 @@ import BODIES from './caravan/bodies.json';
 import PATCH from './caravan/patch.json';
 
 type Pt = number[];
-type Rect = [number, number, number, number];
+// [x0, y0, x1, y1] on the canvas (the words' rects may carry more: see setup)
+type Rect = number[];
 type Cell = (typeof BODIES.cells)[number];
 type Kind = 'wide' | 'tall';
 const BASE = '/hero/caravan/';
 
-type Road = { pts: Pt[]; scale: number[]; T: number[]; n: number; total: number; Ttot: number; lead0: number; gapT: number; first: Member[]; rise: number };
-type Member = { off: number; body: number; at?: number[]; step?: number };
+type Road = { pts: Pt[]; scale: number[]; T: number[]; n: number; total: number; Ttot: number; lead0: number; gapT: number; first: Member[]; rise: number; unit: number; gap1: number; sinks: number };
+type Member = { off: number; body: number; at?: number[]; step?: number; lamp0?: number[] };
 type Team = { n: number; t: number; grand: boolean };
-type Walker = { i: number; t: number; f: number; x: number; y: number; s: number; face: number; narrow: number; legs: number; reach: number; hold: number; body: number; light: number; seen: number; grand: boolean; cell: Cell; c: Team };
+type Walker = { i: number; t: number; f: number; x: number; y: number; s: number; face: number; narrow: number; legs: number; reach: number; hold: number; lamp0?: number[]; body: number; light: number; seen: number; grand: boolean; cell: Cell; c: Team };
 type Mote = { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; a: number; rise?: boolean };
 
 // A laden camel walks at about 1.3 m/s, a stride (all four feet once) every 1.3 s or so. The painted
@@ -98,14 +99,15 @@ const HOT_GOLD = '255, 204, 128';
 const TINT = '255, 150, 36'; // deep amber gold, as the lantern-lit ridges in the painting (little blue: on the night's violet sand more of it turns the lit slope pink)
 const CAP = 200; // no lit pixel goes above this brightness (luma), and no channel clips: lit gold, never white
 
-// Catmull–Rom spline through [x, y, visibility] points, sampled evenly by length.
+// Catmull–Rom spline through [x, y, visibility] points (and whatever more each point carries),
+// sampled evenly by length.
 function trace(pts: Pt[], n: number) {
   const raw: Pt[] = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
     for (let k = 0; k < 30; k++) {
       const t = k / 30, t2 = t * t, t3 = t2 * t;
-      raw.push([0, 1, 2].map((j) => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3)));
+      raw.push(p1.map((_, j) => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3)));
     }
   }
   raw.push(pts[pts.length - 1].slice());
@@ -118,7 +120,7 @@ function trace(pts: Pt[], n: number) {
     const want = (i / (n - 1)) * total;
     while (j < len.length - 2 && len[j + 1] < want) j++;
     const u = (want - len[j]) / (len[j + 1] - len[j] || 1);
-    out.push([0, 1, 2].map((k) => raw[j][k] + (raw[j + 1][k] - raw[j][k]) * u));
+    out.push(raw[j].map((v, k) => v + (raw[j + 1][k] - v) * u));
   }
   return { pts: out, total };
 }
@@ -158,9 +160,9 @@ function soft(color: string, stops: [number, number][]) {
 export type Caravan = ReturnType<typeof createCaravan>;
 
 export function createCaravan() {
-  const route = ROUTE as Record<Kind, { horizon: number; near: number; size: number; pts: Pt[]; occluders: { src: string; x: number; y: number; w: number; h: number; lit?: number[] }[] }>;
+  const route = ROUTE as Record<Kind, { horizon: number; near: number; size: number; pts: Pt[]; unit?: number; enter?: number; counts?: number[]; painted?: { at: number[]; body: number; lamp: number[] }[]; occluders: { src: string; x: number; y: number; w: number; h: number; lit?: number[] }[] }>;
   const bodies = BODIES;
-  // The pictures load only once a layout lets the caravan walk (never on phones, where it does not).
+  // The pictures load only once a layout lets the caravan walk.
   const loaded = new Map<string, HTMLImageElement>();
   const img = (src: string) => {
     let i = loaded.get(src);
@@ -198,9 +200,9 @@ export function createCaravan() {
   let litOf = ''; // the picture it was made from (the same <img> shows the wide one or the tall one)
   const picture = () => (art ? art.currentSrc || art.src : '');
   function litSand() {
-    // (only while the caravan walks, and only from the wide painting: the road here is the wide one's)
-    if (lit || !on || kind !== 'wide' || !art || !art.complete || !art.naturalWidth || /tall/.test(picture())) return lit;
-    const pts = route.wide.pts;
+    // (only while the caravan walks, and only from the painting its road is on)
+    if (lit || !on || !art || !art.complete || !art.naturalWidth || /tall/.test(picture()) !== (kind === 'tall')) return lit;
+    const pts = R.pts;
     const x0 = Math.max(0, Math.min(...pts.map((p) => p[0])) - 120), x1 = Math.min(art.naturalWidth, Math.max(...pts.map((p) => p[0])) + 120);
     const y0 = Math.max(0, Math.min(...pts.map((p) => p[1])) - 50), y1 = Math.min(art.naturalHeight, Math.max(...pts.map((p) => p[1])) + 70);
     const c = document.createElement('canvas');
@@ -208,7 +210,7 @@ export function createCaravan() {
     c.height = Math.round(y1 - y0);
     const g = c.getContext('2d')!;
     g.drawImage(art, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
-    patches.wide.forEach((P, i) => g.drawImage(img(patchSrc.wide[i]), P.x - x0, P.y - y0, P.w, P.h));
+    patches[kind].forEach((P, i) => g.drawImage(img(patchSrc[kind][i]), P.x - x0, P.y - y0, P.w, P.h));
     // what light adds to each pixel is in proportion to the pixel (its texture stays), tinted warm,
     // and a little more in proportion where the sand is dark: at night the hollows are lit too, the
     // already bright road and ridges are not burnt out
@@ -301,6 +303,7 @@ export function createCaravan() {
   let early = 0;
   let heraldAt = 0; // where on the road the light shows: clear of the words, so it is never cut by them
   let xMax = 1e9; // the picture's right edge on screen, at the drift's widest (image px)
+  let stopAt = 1e9; // (the tall painting) where along the road the words end the walk
   let clock = 0;
   let road: Road = null!;
 
@@ -308,7 +311,11 @@ export function createCaravan() {
     const n = 1500;
     const { pts, total } = trace(r.pts, n);
     const ds = total / (n - 1);
-    const scale = pts.map(([, y]) => clamp((y - r.horizon) / (r.near - r.horizon), 0.12, 1.15));
+    // How large a camel is at each point: by how far below the horizon it stands — or, where the
+    // painting's depth does not run so evenly (the tall one: a near ridge, then roads far off), as each
+    // point says. `unit`: how much larger the painted camels are there than the bodies' own size.
+    const unit = r.unit ?? 1;
+    const scale = pts.map((p) => (p.length > 3 ? p[3] : clamp((p[1] - r.horizon) / (r.near - r.horizon), 0.12, 1.15)) * unit);
     const T = [0];
     for (let i = 1; i < n; i++) {
       const s = (scale[i] + scale[i - 1]) / 2;
@@ -326,13 +333,21 @@ export function createCaravan() {
     const gapT = (kind === 'tall' ? 43 : 25) / SPEED;
     // The painted caravan: each camel's own place on the road (as a time behind its leader) and its body.
     const cells = bodies.cells;
-    const painted = cells.map((c, j) => ({ j, T: T[near(c.painted[0], c.painted[1])], at: c.painted })).sort((a, b) => b.T - a.T);
+    const spots: { j: number; at: number[]; lamp?: number[] }[] = r.painted ? r.painted.map((q) => ({ j: q.body, at: q.at, lamp: q.lamp })) : cells.map((c, j) => ({ j, at: c.painted }));
+    const painted = spots.map((q) => ({ ...q, T: T[near(q.at[0], q.at[1])] })).sort((a, b) => b.T - a.T);
     const lead0 = painted[0].T;
     // (each stands mid-stride as it is painted, legs apart: its step starts from there)
-    const first = painted.map((p, i) => ({ off: lead0 - p.T, body: p.j, at: p.at, step: STANCE[i % STANCE.length] - p.T * CADENCE * Math.sqrt(20 / cells[p.j].height) }));
+    const first = painted.map((p, i) => ({ off: lead0 - p.T, body: p.j, at: p.at, step: STANCE[i % STANCE.length] - p.T * CADENCE * Math.sqrt(20 / cells[p.j].height) , lamp0: p.lamp && [cells[p.j].foot[0] + (p.lamp[0] - p.at[0]) / unit, cells[p.j].foot[1] + (p.lamp[1] - p.at[1]) / unit] }));
     // where new caravans come into sight
     let rise = pts.findIndex((p) => p[2] > 0.5);
-    return { pts, scale, T, n, total, Ttot: T[n - 1], lead0, gapT, first, rise };
+    // How far along the road (in its own time) the painted caravan's leader is when the first to follow
+    // sets out: SECOND_AT seconds after the page's caravan appears — or, where the road comes in from
+    // outside the picture (`enter`), so that it is just out of the picture as the page opens.
+    const gap1 = r.enter != null ? lead0 - T[Math.max(0, pts.findIndex((p) => p[0] >= r.enter!))] : lead0 + SECOND_AT - FADE_IN - SET_OFF / 2;
+    // where, past the painted caravan, the road first goes out of sight (or its end)
+    const lead = near(painted[0].at[0], painted[0].at[1]);
+    const gone = pts.findIndex((p, i) => i > lead && p[2] < 0.05);
+    return { pts, scale, T, n, total, Ttot: T[n - 1], lead0, gapT, first, rise, unit, gap1, sinks: gone < 0 ? n - 1 : gone };
   }
 
   function at(t: number) {
@@ -365,7 +380,7 @@ export function createCaravan() {
     const r = rng(101 + n * 7);
     const out: Member[] = [];
     let off = 0;
-    const count = grand ? 13 : 6;
+    const count = (R.counts ?? [6, 13])[grand ? 1 : 0];
     const cells = bodies.cells;
     const pick = Array.from({ length: count }, () => Math.floor(r() * cells.length));
     for (let i = 0; i < count; i++) {
@@ -375,7 +390,7 @@ export function createCaravan() {
       // the grand caravan in small knots of camels, with wider gaps between them
       const close = (cells[pick[i]].w + cells[pick[i + 1]].w) * 0.46;
       const air = grand ? (i % 4 === 3 ? 15 : 0.5) : 2;
-      off += (close + air + r() * 3) / SPEED;
+      off += ((close + air + r() * 3) * road.unit) / (SPEED * road.unit ** DEPTH);
     }
     rosters.set(key, out);
     return out;
@@ -390,7 +405,7 @@ export function createCaravan() {
   }
 
   // How far along the road (in its own time) the painted caravan's leader is when number 1 sets out.
-  const firstGap = () => road.lead0 + SECOND_AT - FADE_IN - SET_OFF / 2;
+  const firstGap = () => road.gap1;
 
   function caravans() {
     const out: Team[] = [];
@@ -425,7 +440,7 @@ export function createCaravan() {
         x += (m.at[0] - r0[0]) * hold;
         y += (m.at[1] - r0[1]) * hold;
       }
-      const s = lerp(road.scale, f) * (1 - hold) + hold;
+      const s = lerp(road.scale, f) * (1 - hold) + hold * road.unit;
       const a = road.pts[Math.max(0, Math.floor(f) - 4)], b = road.pts[Math.min(road.n - 1, Math.floor(f) + 4)];
       const dx = b[0] - a[0], dy = b[1] - a[1];
       const turn = dx / (Math.hypot(dx, dy) || 1);
@@ -437,18 +452,26 @@ export function createCaravan() {
       // far off they cover more of their own length a second (DEPTH): a longer step, as far as a leg goes
       const reach = (REACH / quick) * Math.min(1.15, lerp(road.scale, f) ** (DEPTH - 1));
       const done = t / road.Ttot;
-      const seen = gate < 0 || c.n === 0 ? 1 : smooth(gate, gate + 40, f);
-      const edge = 1 - smooth(xMax - 40, xMax - 6, x);
+      let seen = gate < 0 || c.n === 0 ? 1 : smooth(gate, gate + 40, f);
+      let edge = 1 - smooth(xMax - 40, xMax - 6, x);
+      if (kind === 'tall') {
+        // there the road goes out of sight over the crest of a dune, and comes back from behind another:
+        // the camels sink behind it and rise again (they do not thin out in plain sight), and where the
+        // words stand over the far end of the road, they are gone before they reach them
+        seen *= vis;
+        vis = vis > 0.01 ? 1 : 0;
+        edge *= 1 - smooth(stopAt - 70, stopAt - 20, f);
+      }
       const body = vis * edge * smooth(0.17, 0.32, s) * Math.min(1, seen * 1.4);
       const light = vis * edge * Math.min(1, seen * 2) * (1 - smooth(0.965, 1, done)) * handover;
-      list.push({ i, t, f, x, y, s, face, narrow, legs, reach, hold, body, light, seen, grand: c.grand, cell: bodies.cells[m.body], c });
+      list.push({ i, t, f, x, y, s, face, narrow, legs, reach, hold, lamp0: m.lamp0, body, light, seen, grand: c.grand, cell: bodies.cells[m.body], c });
     });
     return list;
   }
 
   // How strongly the light of caravan c shows behind the ridge before it comes over, and where.
   function herald(c: Team) {
-    if (c.n === 0) return { a: 0, ix: 0 };
+    if (c.n === 0 || kind === 'tall') return { a: 0, ix: 0 }; // (on the tall painting they walk in from the side: nothing to herald)
     const ahead = smooth(early - HERALD, early, c.t); // the light comes first, the camels after
     const comeT = road.T[gate > 0 ? Math.round(gate + 30) : road.rise + 30];
     const after = 1 - smooth(comeT, comeT + 16, c.t);
@@ -491,7 +514,8 @@ export function createCaravan() {
       const step = Math.max(0.5, (0.45 * rx) / (dsImg * k)); // footprints about 0.45 of their width apart
       const vis = smooth(0.3, 0.95, p[2]);
       const seen = gate < 0 || c.n === 0 ? 1 : smooth(gate, gate + 40, f);
-      const edge = 1 - smooth(xMax - 150, xMax - 10, p[0]); // a long fade: the band must not end in a cap at the edge
+      let edge = 1 - smooth(xMax - 150, xMax - 10, p[0]); // a long fade: the band must not end in a cap at the edge
+      if (kind === 'tall') edge *= 1 - smooth(stopAt - 90, stopAt - 25, f);
       const far = 0.55 + 0.45 * smooth(0.15, 0.75, s); // farther: narrower (rx) and fainter
       const fromHere = c.n === 0 ? smooth(from - 1, from + 1, t) : 1;
       // the leader's own footprint fades in over its first steps, so the band starts soft under it
@@ -502,7 +526,10 @@ export function createCaravan() {
         const [x, y] = map(p);
         // keep off the words: footprints fade out as they come up to them (only there: the rest of the
         // light stays), and nothing is ever drawn over the words themselves (offTheWords)
-        const clear = (cy: number, ry: number) => smooth(2, 20, toWords(x - rx * 0.8, cy - ry * 0.8, x + rx * 0.8, cy + ry * 0.8));
+        // (on the tall painting, where the words are known frame by frame and stand a few px under the
+        // ridge, a footprint stays until its middle reaches them: what of it would fall on the words is
+        // cut away there, as everything is)
+        const clear = (cy: number, ry: number) => (kind === 'tall' ? smooth(0, 4, toWords(x - rx * 0.3, cy - 1, x + rx * 0.3, cy + 1)) : smooth(2, 20, toWords(x - rx * 0.8, cy - ry * 0.8, x + rx * 0.8, cy + ry * 0.8)));
         // a footprint's cross-section integrates to about 0.62·rx; spaced `step` apart they sum to I
         const each = (norm * step * dsImg * k) / (0.62 * rx);
         const ry = rx * FLAT;
@@ -731,7 +758,7 @@ export function createCaravan() {
     const cell = m.cell;
     // carried over the neck, a little above the load; the painted caravan's start where they are painted
     // (two of them hang low there) and are lifted into place as it sets off
-    const L = m.hold > 0 ? mix(cell.lantern, cell.lanternAt, m.hold) : cell.lantern;
+    const L = m.hold > 0 ? mix(cell.lantern, m.lamp0 ?? cell.lanternAt, m.hold) : cell.lantern;
     const ph = ((m.legs % 1) + 1) % 1;
     // it hangs: a slow swing, once a stride
     const sway = 0.3 * Math.sin((m.legs + 0.15) * Math.PI * 2 + m.i);
@@ -874,7 +901,7 @@ export function createCaravan() {
   // Nothing of the caravan is ever drawn over the words: everything after the patches is clipped to
   // outside each word's box (with a little air). One clip per box: each keeps the outside of its box.
   function offTheWords(ctx: CanvasRenderingContext2D) {
-    const air = 4;
+    const air = kind === 'tall' ? 1 : 4;
     const W = ctx.canvas.width, H = ctx.canvas.height; // generous: the context is scaled by dpr already
     for (const [x0, y0, x1, y1] of text) {
       ctx.beginPath();
@@ -903,9 +930,14 @@ export function createCaravan() {
     get length() {
       return road ? road.Ttot : 0;
     },
+    /** (The tall painting, every frame:) where the words are on the canvas at this moment. */
+    words(rects: Rect[]) {
+      text = rects;
+    },
     /**
      * Call whenever the canvas is laid out, and whenever the words move. `avoid`: rects [x0, y0, x1, y1]
-     * of the words, in canvas px. `rightEdge`: the right edge of what is seen of the canvas at the
+     * of the words, in canvas px (over the drift's whole sweep; a fifth and sixth number, where given,
+     * are y0 and y1 with the words at their lowest on the canvas). `rightEdge`: the right edge of what is seen of the canvas at the
      * drift's widest (canvas px). `painting`: the <img> of the picture (the light is made from its sand).
      * Only the layout changes: the caravans walk on where they are.
      */
@@ -923,26 +955,59 @@ export function createCaravan() {
       text = avoid;
       const [ox] = map([0, 0]);
       xMax = rightEdge == null ? 1e9 : (rightEdge - ox) / k;
-      const hw = 0.7 * R.size * k, up = 1.4 * R.size * k, air = 6;
+      // (on the tall painting the caravan walks in a gap between two lines of words, a few px from
+      // each, and the words are measured as their ink: no air is asked for there — nothing is ever
+      // drawn over them in any case, see offTheWords)
+      const tall = which === 'tall';
+      const hw = 0.7 * R.size * k, up = 1.4 * R.size * k, air = tall ? 0 : 6;
       why = null;
       let last = -1;
+      const lead = Math.floor(at(road.lead0));
+      // (on the tall painting a camel's box is as large as the camel is there — the far road runs close
+      // under the wordmark, where they are a few px tall — and only the far road is asked about here:
+      // see below)
+      let after = -1;
       road.pts.forEach(([x, y, v], i) => {
-        if (i % 3 || v < 0.05) return;
+        if (i % 3 || v < 0.05 || (tall && i <= road.sinks)) return;
         const [sx, sy] = map([x, y]);
-        const hit = avoid.find(([x0, y0, x1, y1]) => sx + hw > x0 - air && sx - hw < x1 + air && sy + 2 > y0 - air && sy - up < y1 + air);
+        const z = tall ? road.scale[i] / road.unit : 1;
+        const hit = avoid.find(([x0, y0, x1, y1]) => sx + hw * z > x0 - air && sx - hw * z < x1 + air && sy + 2 > y0 - air && sy - up * z < y1 + air);
         if (hit) {
           last = i;
-          why = { at: [Math.round(sx), Math.round(sy)], text: hit.map(Math.round) };
+          if (after < 0) after = i;
+          if (!tall) why = { at: [Math.round(sx), Math.round(sy)], text: hit.map(Math.round) };
         }
       });
       // Where the words come near the road only up to where the painted caravan already stands (its
-      // leader), new
-      // caravans come into sight after that point (from behind the ridge); past it, it stays as painted.
-      // On phones (the tall picture) it always stays: the caravan is small there, deep under the words'
-      // dark veil, and right under the wordmark.
-      const lead = Math.floor(at(road.lead0));
+      // leader), new caravans come into sight after that point (from behind the ridge); past it, it
+      // stays as painted.
       rearAt = lead;
-      on = which === 'wide' && last <= lead;
+      on = last <= lead;
+      stopAt = road.n;
+      if (tall) {
+        // On the tall painting (phones, tablets held upright) the page hangs the picture from the
+        // words: the ridge the camels walk lies in the gap between the wordmark and the first line,
+        // with a few px to spare above and below (Page.astro, the scene). So the walk is not asked
+        // to go round anything there. Should a camel or its light still reach a line of words at
+        // some moment (the words are known frame by frame: `words`), that part of it is not drawn:
+        // it passes behind the line as behind a wall, never over or under a letter. And it stays as
+        // painted where, with the words at their lowest, half or more of the painted caravan would
+        // be hidden (no size the page lays out itself: a guard). On the far road the words (the
+        // wordmark, over the city) end the walk early: `stopAt`.
+        const rear = Math.floor(at(road.lead0 - road.first[road.first.length - 1].off));
+        let hid = 0, all = 0;
+        for (let i = rear; i <= lead; i += 3) {
+          const [sx, sy] = map(road.pts[i]);
+          const h = 20 * road.scale[i] * k; // a camel's height there, on the canvas
+          const over = avoid.find((q) => sx > q[0] && sx < q[2] && sy - 0.5 * h > (q[4] ?? q[1]) && sy - h < (q[5] ?? q[3]));
+          all++;
+          if (over) (hid++), (why = { at: [Math.round(sx), Math.round(sy)], text: over.slice(0, 4).map(Math.round) });
+        }
+        on = hid < all * 0.5;
+        if (on) why = null;
+        if (after > 0) stopAt = after;
+        last = -1;
+      }
       gate = last < 0 ? -1 : Math.max(road.rise, last + 6);
       const underWay = firstAt() - firstGap() + HERALD > early; // number 1's light already showing
       // the light's centre: from just past where they come into sight, on along the road until its
@@ -1125,7 +1190,7 @@ export function createCaravan() {
       // shorter one was tried and dropped: one strand reads as a gesture, two as shapes)
       for (const m of scene) {
         if (!m.grand) continue;
-        if (m.i === 0) ribbon(ctx, m, { lag: 16.6, lift: 4.5, seed: m.c.n, N: 56 }, clockSky);
+        if (m.i === 0 && kind === 'wide') ribbon(ctx, m, { lag: 16.6, lift: 4.5, seed: m.c.n, N: 56 }, clockSky);
       }
       ctx.restore();
     },

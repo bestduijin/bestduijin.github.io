@@ -378,17 +378,41 @@ const STAGE_SECONDS = 3;
       const d = ends();
       return d.ends.map(({ s, tx, ty }) => [d.ox + (X - d.ox) / s - tx, d.oy + (Y - d.oy) / s - ty]);
     };
+    const pen = document.createElement('canvas').getContext('2d'); // (for measuring letters: see `ink` below)
     const avoid = () => {
-      const box = scene.getBoundingClientRect();
-      const out: [number, number, number, number][] = [];
+      // (the canvas's own box, before the drift's transform: on tall screens it is not the scene's)
+      const at = scene.getBoundingClientRect();
+      const box = { left: at.left + drift.offsetLeft, top: at.top + drift.offsetTop };
+      const out: number[][] = [];
       const range = document.createRange();
       // the words themselves (each line box of text), and the buttons and links as whole boxes
       const words = hero.querySelectorAll<HTMLElement>('.bar-top > :not([hidden]), .intro > :not([hidden])');
+      // On the tall painting (phones) the caravan passes within a few px of the words. There a line of
+      // text counts as its ink — from the top of its tallest letter to the bottom of its lowest — not
+      // as its whole line box, which reaches well above and below the letters. (Measured with the
+      // font's own numbers, scaled to the size the line is really drawn at: a browser that enlarges
+      // text for reading does not say so in the computed font size.)
+      const tall = /tall/.test(hero.querySelector('img')!.currentSrc);
+      const ink = (q: DOMRect, n: Node): DOMRect => {
+        if (!tall || !pen || !q.height) return q;
+        const cs = getComputedStyle(n.parentElement!);
+        pen.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const m = pen.measureText(n.textContent!);
+        const full = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+        if (!(full > 0) || !(m.actualBoundingBoxAscent > 0)) return q;
+        const r = q.height / full, base = q.top + m.fontBoundingBoxAscent * r;
+        const top = Math.max(q.top, base - m.actualBoundingBoxAscent * r - 1), bottom = Math.min(q.bottom, base + Math.max(0, m.actualBoundingBoxDescent) * r + 1);
+        return bottom > top ? new DOMRect(q.left, top, q.width, bottom - top) : q;
+      };
       const add = (q: DOMRect) => {
         if (!q.width || !q.height) return;
         const a = back(q.left - box.left, q.top - box.top), b = back(q.right - box.left, q.bottom - box.top);
         out.push([Math.min(a[0][0], a[1][0]), Math.min(a[0][1], a[1][1]), Math.max(b[0][0], b[1][0]), Math.max(b[0][1], b[1][1])]);
+        // (the tall painting also asks where the line is with the drift at its start, the words lowest on the canvas)
+        if (tall) out[out.length - 1].push(a[0][1], b[0][1]);
+        seen.push([q.left - box.left, q.top - box.top, q.right - box.left, q.bottom - box.top]);
       };
+      seen.length = 0;
       for (const el of words) {
         for (const c of el.querySelectorAll('a, button')) add(c.getBoundingClientRect());
         if (el.matches('a, button')) add(el.getBoundingClientRect());
@@ -396,15 +420,26 @@ const STAGE_SECONDS = 3;
         for (let n = walk.nextNode(); n; n = walk.nextNode()) {
           if (!n.textContent!.trim()) continue;
           range.selectNodeContents(n);
-          for (const q of range.getClientRects()) add(q);
+          for (const q of range.getClientRects()) add(ink(q, n));
         }
       }
       return out;
     };
     // what is seen of the canvas on the right, at whichever end of the drift crops more
     const edge = () => Math.min(...back(drift.clientWidth, 0).map(([x]) => x));
+    // ... and where the words are on the canvas at this very moment of the drift (the tall painting
+    // asks every frame: there they stand so close to the caravan that the drift's whole sweep is too
+    // wide a berth). From the places last measured by `avoid`, and the drift's transform as it is now.
+    const seen: [number, number, number, number][] = [];
+    const now = () => {
+      const cs = getComputedStyle(drift);
+      const m = new DOMMatrixReadOnly(cs.transform === 'none' ? '' : cs.transform);
+      const [ox, oy] = cs.transformOrigin.split(' ').map(parseFloat);
+      const at = (X: number, Y: number) => [ox + (X - ox - m.e) / m.a, oy + (Y - oy - m.f) / m.d];
+      return seen.map(([l, t, r, b]) => [...at(l, t), ...at(r, b)]);
+    };
     const caravan = createCaravan();
-    const sky = startSky(canvas, hero.querySelector('img')!, { caravan, avoid, edge });
+    const sky = startSky(canvas, hero.querySelector('img')!, { caravan, avoid, edge, now });
     // re-measure when the words can have moved
     let pending = 0;
     const again = () => {
@@ -558,9 +593,17 @@ const STAGE_SECONDS = 3;
     isolation: isolate;
     overflow: clip;
     display: grid;
+    /* One column exactly as wide as the hero. Left to `auto`, the column grows to its widest
+       unbreakable line (a grid item's minimum size is its min-content width), and with large text
+       (an in-app browser's text-size setting) everything in it ran past the right edge, where the
+       hero clips it. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto 1fr;
     row-gap: 2rem;
-    min-height: min(100svh, 62vw + 20rem);
+    --min-h: min(100svh, 62vw + 20rem);
+    min-height: var(--min-h);
+    /* Between the wordmark and the two lines. */
+    --gap: max(2.25rem, 5.75 * var(--u));
     /* Room under the numbers (the scene's pause button sits on it from 1024 wide). Kept small:
        the taller the words, the higher the wordmark climbs into the bright ribbons. */
     --pad-end: clamp(2rem, 5svh, 4rem);
@@ -626,13 +669,66 @@ const STAGE_SECONDS = 3;
     content: '';
     position: absolute;
     inset: 0;
+  }
+  /* (.hero::after: where the veil is on tall screens, see below) */
+  .scene::after,
+  .hero::after {
     background:
       linear-gradient(to top, rgb(8 12 32 / 0.92) 0%, rgb(8 12 32 / 0.7) 30%, rgb(8 12 32 / 0.15) 58%, rgb(8 12 32 / 0) 70%),
       linear-gradient(to right, rgb(8 12 32 / 0.55), rgb(8 12 32 / 0) 55%);
   }
   @media (max-width: 46rem) {
-    .scene::after {
+    .scene::after,
+    .hero::after {
       background: linear-gradient(to top, rgb(8 12 32 / 0.95) 0%, rgb(8 12 32 / 0.8) 45%, rgb(8 12 32 / 0.35) 75%, rgb(8 12 32 / 0.2) 100%);
+    }
+  }
+  /* Tall screens (phones, upright tablets: the tall painting). Its caravan walks a dune ridge
+     across the middle of the picture, and the words stand at the bottom of the screen, as tall
+     as their language and the reader's text size make them: hung from the screen, the picture
+     had the words' first line on that ridge at most sizes. So here the painting hangs from the
+     words. Its ridge lies in the gap between the wordmark and the two lines, on any screen.
+     How: the hero's second row is exactly the words (.intro). The scene is placed in that row;
+     it starts at the ridge line, half the gap under the wordmark, and ends at the hero's bottom
+     edge. The picture in it is sized so that what the painting has under its ridge (1 − --ridge
+     of its height) fills that box, or larger where it would not reach the hero's top or sides
+     (the painting is 2:3). It breathes about the ridge and does not move up or down, so the
+     caravan stays in its gap. The veil, which belongs to the screen, moves to the hero. */
+  @media (max-aspect-ratio: 3/4) {
+    /* (only where the hero's height can be told: a browser without svh gives it none, and there the
+       picture stays hung from the screen) */
+    @supports (height: 1svh) {
+      .hero {
+        --ridge: 0.496;
+        grid-template-rows: auto auto;
+        align-content: space-between;
+      }
+      .scene {
+        grid-row: 2;
+        /* (the middle of the gap as the eye sees it: from the wordmark's baseline, 0.107em above the
+           bottom of its box, which is 0.92em tall, to the top of the first line's letters, a few px
+           under the top of theirs) */
+        top: calc((0.92 - 0.107 / 2) * 21 * var(--u) + var(--gap) / 2 + 0.2rem);
+        overflow: visible;
+      }
+      .scene::after {
+        content: none;
+      }
+      .hero::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+      }
+      .drift {
+        --drift-y: 0%;
+        --tall: max(100% / (1 - var(--ridge)), (var(--min-h) - 100%) / var(--ridge), 150vw);
+        top: calc(var(--tall) * var(--ridge) * -1);
+        bottom: auto;
+        height: var(--tall);
+        transform-origin: 60% calc(var(--ridge) * 100%);
+      }
     }
   }
   .bar-top {
@@ -825,12 +921,22 @@ const STAGE_SECONDS = 3;
      in the frontmatter) in a wrapping flex row: the gap between them is the pause, a fixed space
      on one line, and the only place a line may break on a phone (the gap then disappears). */
   .headline {
-    margin: max(2.25rem, 5.75 * var(--u)) 0 0;
+    margin: var(--gap) 0 0;
     font-size: clamp(1.35rem, 7.6vw, 2.25rem);
     line-height: 1.16;
     letter-spacing: -0.005em;
     /* On the smallest phones the lines climb into the lit sky: a soft shadow, like the wordmark's. */
     text-shadow: 0 1px 18px rgb(8 12 32 / 0.65);
+  }
+  /* The opening scene is composed like a poster: the wordmark and the two lines keep their size
+     when a browser enlarges text (an in-app browser sets a percentage on <body>, which every
+     element inherits; declared here, it no longer reaches these). They are display sizes, well
+     above any reading minimum, and grown they would cover the caravan in the painting. The small
+     type in the scene and the whole page below it still follow the reader's text size. */
+  .wordmark,
+  .headline {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   /* Chinese in large type is Song Bold: beside DM Serif Display's dark strokes the regular Song
      looked thin and the Latin letters like blots. Only a real bold: where the system has none,
@@ -869,23 +975,48 @@ const STAGE_SECONDS = 3;
   .half {
     white-space: nowrap;
   }
+  /* Below 1024 wide a half that is itself wider than the screen (large text) wraps inside,
+     evened out by the sentence's balance: English between words, Chinese only at its spaces
+     (around "AI"), and anywhere only as a last resort. At normal sizes each half still fits on
+     its line, so nothing changes there. */
+  @media (max-width: 63.99rem) {
+    .half {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .headline:lang(zh-Hans) .half {
+      word-break: keep-all;
+    }
+  }
   /* Phones and tablets: the painted caravan stands just under the wordmark. A wider gap (the
      height the smaller first line saved) lifts the wordmark clear of it and leaves the camels
      room between the wordmark and the lines, instead of a narrow slit (or, at 768, behind the
      letters). */
   @media (max-width: 63.99rem) {
-    .headline {
+    .hero {
       /* 72px on a 844-tall phone; less on short ones, where a taller gap would push the
          wordmark up into the bright ribbons (320×640: 51px). */
-      margin-top: min(4.5rem, 8svh);
+      --gap: min(4.5rem, 8svh);
     }
   }
   @media (min-width: 48rem) and (max-width: 63.99rem) {
-    .headline {
-      margin-top: 5.5rem;
-    }
     .hero {
+      --gap: 5.5rem;
       --pad-end: 4.75rem;
+    }
+  }
+  /* Tall screens: the caravan walks in this gap (see the scene, above), camels, lanterns and the
+     light at their feet about a fifteenth of the painting's height. On short phones 8svh is less
+     than that; on a tablet held upright the painting is as wide as the screen and its camels are
+     larger than 5.5rem. */
+  @media (max-aspect-ratio: 3/4) {
+    .hero {
+      --gap: clamp(3.75rem, 8svh, 4.5rem);
+    }
+  }
+  @media (max-aspect-ratio: 3/4) and (min-width: 48rem) {
+    .hero {
+      --gap: max(5.5rem, 9.5vw);
     }
   }
   @media (min-width: 48rem) {
@@ -1047,8 +1178,13 @@ const STAGE_SECONDS = 3;
     .figures {
       grid-template-columns: minmax(0, 1fr);
     }
+    /* With very large text the tag drops under its number instead of running off the screen. */
+    .figures a {
+      flex-wrap: wrap;
+      row-gap: 0;
+    }
     .hero {
-      min-height: min(100svh, 52rem);
+      --min-h: min(100svh, 52rem);
     }
   }
   /* One sentence per line; a sentence too long for the screen splits evenly. */
@@ -1152,6 +1288,16 @@ const STAGE_SECONDS = 3;
   /* The last few words of a paragraph, held together (`para` in the frontmatter). */
   .glue {
     white-space: nowrap;
+  }
+  /* Below 1024 wide, held as one box instead: it still moves to the next line whole, but if it is
+     wider than the column (very large text on a narrow phone) it wraps inside rather than running
+     past the screen's edge. */
+  @media (max-width: 63.99rem) {
+    .glue {
+      display: inline-block;
+      max-width: 100%;
+      white-space: normal;
+    }
   }
   /* Short texts of two to four lines: evened out. (Not the steps' descriptions: evened out, each
      would take its own width and the column would look ragged.) */
